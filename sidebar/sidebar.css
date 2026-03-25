@@ -1,0 +1,21 @@
+/* Prompt Master — Sidebar styles */
+
+:root {
+    /* TODO: brand variables */
+}
+
+body {
+    /* TODO */
+}
+
+#pm-score-display {
+    /* TODO */
+}
+
+#pm-components li.present {
+    /* TODO: green indicator */
+}
+
+#pm-components li.missing {
+    /* TODO: red/amber indicator */
+}
