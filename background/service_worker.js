@@ -18,7 +18,14 @@ chrome.runtime.onInstalled.addListener(() => {
     });
 });
 
-// TODO: message routing between content script and sidebar
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // TODO
+// Forward PROMPT_UPDATE messages from content script to sidebar iframe in the same tab
+chrome.runtime.onMessage.addListener((message, sender) => {
+    if (message.type !== 'PROMPT_UPDATE') return;
+
+    const tabId = sender.tab?.id;
+    if (tabId == null) return;
+
+    chrome.tabs.sendMessage(tabId, message).catch(() => {
+        // Sidebar not yet loaded — safe to ignore
+    });
 });
