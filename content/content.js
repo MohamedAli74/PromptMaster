@@ -44,7 +44,15 @@ function init() {
     observeInput(platform.inputSelector, (inputEl) => {
         // TODO: inject sidebar
         // TODO: inject Magic Wand FAB
-        // TODO: attach input listener → linter
+
+        let debounceTimer;
+        inputEl.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                const text = inputEl.value ?? inputEl.innerText;
+                chrome.runtime.sendMessage({ type: 'PROMPT_UPDATE', text });
+            }, 300);
+        });
     });
 }
 
