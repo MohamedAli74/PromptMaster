@@ -42,8 +42,47 @@ function init() {
     if (!platform) return;
 
     observeInput(platform.inputSelector, (inputEl) => {
-        // TODO: inject sidebar
-        // TODO: inject Magic Wand FAB
+        // Inject sidebar iframe
+        const iframe = document.createElement('iframe');
+        iframe.id  = 'pm-sidebar';
+        iframe.src = chrome.runtime.getURL('sidebar/sidebar.html');
+        document.body.appendChild(iframe);
+
+        // Inject Magic Wand FAB
+        const fab = document.createElement('button');
+        fab.id          = 'pm-fab';
+        fab.textContent = '✨';
+        document.body.appendChild(fab);
+
+        fab.addEventListener('click', async () => {
+            if (!window.ai) {
+                alert('Magic Wand requires Gemini Nano. Enable it in chrome://flags/#optimization-guide-on-device-model');
+                return;
+            }
+
+            const rawText = inputEl.value ?? inputEl.innerText;
+            if (!rawText.trim()) return;
+
+            fab.disabled    = true;
+            fab.textContent = '⏳';
+
+            try {
+                const session      = await window.ai.languageModel.create();
+                const expandedText = await session.prompt(
+                    `Expand the following into a structured prompt using Role, Context, Task, Constraint, and Format. Return only the expanded prompt, no explanation.\n\n${rawText}`
+                );
+
+                if (inputEl.value !== undefined) {
+                    inputEl.value = expandedText;
+                } else {
+                    inputEl.innerText = expandedText;
+                }
+                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            } finally {
+                fab.disabled    = false;
+                fab.textContent = '✨';
+            }
+        });
 
         let debounceTimer;
         inputEl.addEventListener('input', () => {
