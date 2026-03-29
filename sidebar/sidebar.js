@@ -18,7 +18,7 @@ const COMPONENTS = [
 // ----------------------------------------------------------------
 const HEURISTICS = {
     role: {
-        keywords: ['act as', 'you are', 'as a', 'pretend to be', 'imagine you', 'take the role', 'your role is'],
+        keywords: ['act as', 'you are', 'as a', 'pretend to be', 'imagine you', 'take the role', 'your role is', 'persona', 'character', 'role', 'from the perspective of'],
         pattern:  null,
     },
     context: {

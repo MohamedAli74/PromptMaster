@@ -15,6 +15,15 @@ const PLATFORMS = {
     'gemini.google.com': { inputSelector: '.ql-editor' },
 };
 
+const masterPrompt = `You are a Senior Prompt Engineer. Your job is to transform a user's weak or vague input into a high-performance 'Master Prompt' using the RCTCF Framework (Role, Context, Task, Constraint, Format).
+The Transformation Rules:
+Role: Assign the most relevant expert persona.
+Context: Add necessary background info to ground the AI.
+Task: Sharpen the core action verb.
+Constraint: Add professional boundaries (e.g., 'no fluff', 'step-by-step').
+Format: Choose the most useful visual structure (e.g., Markdown, Table).
+Strict Output Rule: > Return ONLY the rewritten prompt. Do not include 'Here is your prompt', do not use JSON, and do not provide any commentary or explanations. Your response must start immediately with the first word of the enhanced prompt.`;
+
 function getPlatform() {
     const host = location.hostname.replace('www.', '');
     return PLATFORMS[host] || null;
@@ -143,7 +152,7 @@ function init() {
                     },
                 });
                 const expandedText = await session.prompt(
-                    `Expand the following into a structured prompt using Role, Context, Task, Constraint, and Format. Return only the expanded prompt, no explanation.\n\n${rawText}`
+                    masterPrompt + rawText
                 );
 
                 if (inputEl.value !== undefined) {
