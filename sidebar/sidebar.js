@@ -22,7 +22,7 @@ const HEURISTICS = {
         pattern:  null,
     },
     context: {
-        keywords: ['background', 'context', 'currently', 'we have', 'i have', 'our', 'the project', 'given that', 'situation'],
+        keywords: ['background', 'context', 'currently', 'current', 'we have', 'i have', 'our', 'the project', 'given that', 'situation'],
         pattern:  null,
     },
     task: {
