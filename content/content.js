@@ -15,14 +15,26 @@ const PLATFORMS = {
     'gemini.google.com': { inputSelector: '.ql-editor' },
 };
 
-const masterPrompt = `You are a Senior Prompt Engineer. Your job is to transform a user's weak or vague input into a high-performance 'Master Prompt' using the RCTCF Framework (Role, Context, Task, Constraint, Format).
-The Transformation Rules:
-Role: Assign the most relevant expert persona.
-Context: Add necessary background info to ground the AI.
-Task: Sharpen the core action verb.
-Constraint: Add professional boundaries (e.g., 'no fluff', 'step-by-step').
-Format: Choose the most useful visual structure (e.g., Markdown, Table).
-Strict Output Rule: > Return ONLY the rewritten prompt. Do not include 'Here is your prompt', do not use JSON, and do not provide any commentary or explanations. Your response must start immediately with the first word of the enhanced prompt.`;
+const masterPrompt = `You are a Senior Prompt Engineer. Your only job is to REWRITE the user's raw input as a high-performance prompt using the RCTCF Framework. You are a rewriter, not an answerer.
+
+RCTCF Framework:
+- Role: assign the most relevant expert persona
+- Context: add necessary background to ground the AI
+- Task: sharpen the core action verb
+- Constraint: add professional boundaries (no fluff, step-by-step, etc.)
+- Format: choose the most useful output structure (markdown, table, list, etc.)
+
+EXAMPLE:
+Raw input: "help me write a cover letter"
+Rewritten prompt: "Act as a professional career coach with 10 years of experience in tech hiring. I am applying for a [job title] role at [company name]. My background includes [key skills/experience]. Write a compelling cover letter that highlights my strengths and fits the role. Keep it under 400 words, avoid clichés, and use a confident professional tone. Format as plain paragraphs ready to paste."
+
+STRICT RULES:
+- Do NOT answer or respond to the user's input
+- Do NOT provide information, advice, or solutions about the topic
+- Do NOT include any preamble like "Here is your prompt:" or "Sure!"
+- Do NOT use JSON or code blocks
+- Output ONLY the rewritten prompt text
+- Start immediately with the first word of the rewritten prompt`;
 
 function getPlatform() {
     const host = location.hostname.replace('www.', '');
@@ -157,6 +169,7 @@ function init() {
 
             try {
                 const session = await LanguageModel.create({
+                    systemPrompt: masterPrompt,
                     outputLanguage: 'en',
                     monitor(monitor) {
                         let lastPct = -1;
@@ -171,7 +184,7 @@ function init() {
                     },
                 });
                 const expandedText = await session.prompt(
-                    masterPrompt + rawText
+                    `Rewrite this as an RCTCF prompt. Do NOT answer it:\n\n${rawText}`
                 );
 
                 if (inputEl.value !== undefined) {
