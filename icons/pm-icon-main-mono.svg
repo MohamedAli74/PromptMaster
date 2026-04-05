@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="52" height="52">
+  <!-- Mono version — all dark (#0a0a0f) for use on gradient/light backgrounds -->
+  <!-- Crown/flame body -->
+  <path d="M 14,23 L 17,13 L 21,20.5 L 26,7 L 31,20.5 L 35,13 L 38,23 Z" fill="#0a0a0f"/>
+  <!-- Crown base bar -->
+  <rect x="14" y="21.5" width="24" height="6.5" rx="3.2" fill="#0a0a0f"/>
+  <!-- Crown peak nodes -->
+  <circle cx="17" cy="13" r="2.4" fill="#0a0a0f"/>
+  <circle cx="26" cy="7"  r="2.8" fill="#0a0a0f"/>
+  <circle cx="35" cy="13" r="2.4" fill="#0a0a0f"/>
+  <!-- Center highlight dot — white kept for visual punch -->
+  <circle cx="26" cy="7"  r="1.2" fill="#ffffff" opacity="0.85"/>
+  <!-- Wand handle -->
+  <rect x="20" y="30" width="12" height="2"  rx="1" fill="#0a0a0f"/>
+  <rect x="23" y="30" width="6"  height="18" rx="3" fill="#0a0a0f"/>
+  <rect x="20" y="46" width="12" height="2"  rx="1" fill="#0a0a0f"/>
+  <!-- Handle base gem -->
+  <circle cx="26" cy="50" r="2" fill="#0a0a0f"/>
+</svg>

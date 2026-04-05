@@ -101,8 +101,19 @@ function init() {
 
     // Floating orb (always visible)
     const orb = document.createElement('button');
-    orb.id          = 'pm-orb';
-    orb.textContent = '✦';
+    orb.id = 'pm-orb';
+    orb.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="26" height="26">
+        <path d="M 14,23 L 17,13 L 21,20.5 L 26,7 L 31,20.5 L 35,13 L 38,23 Z" fill="#0a0a0f"/>
+        <rect x="14" y="21.5" width="24" height="6.5" rx="3.2" fill="#0a0a0f"/>
+        <circle cx="17" cy="13" r="2.4" fill="#0a0a0f"/>
+        <circle cx="26" cy="7"  r="2.8" fill="#0a0a0f"/>
+        <circle cx="35" cy="13" r="2.4" fill="#0a0a0f"/>
+        <circle cx="26" cy="7"  r="1.2" fill="#ffffff" opacity="0.85"/>
+        <rect x="20" y="30" width="12" height="2"  rx="1" fill="#0a0a0f"/>
+        <rect x="23" y="30" width="6"  height="18" rx="3" fill="#0a0a0f"/>
+        <rect x="20" y="46" width="12" height="2"  rx="1" fill="#0a0a0f"/>
+        <circle cx="26" cy="50" r="2" fill="#0a0a0f"/>
+    </svg>`;
     document.body.appendChild(orb);
 
     // Glassy popup (hidden until user types)
@@ -114,8 +125,15 @@ function init() {
     observeInput(platform.inputSelector, (inputEl) => {
         // Magic Wand FAB
         const fab = document.createElement('button');
-        fab.id          = 'pm-fab';
-        fab.textContent = '✨';
+        fab.id = 'pm-fab';
+        fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="22" height="22">
+            <line x1="12" y1="42" x2="35" y2="17" stroke="#0a0a0f" stroke-width="7" stroke-linecap="round"/>
+            <circle cx="12" cy="42" r="5" fill="#0a0a0f"/>
+            <circle cx="12" cy="42" r="3" fill="rgba(10,10,15,0.6)"/>
+            <polygon points="38,5 40.8,11.2 47,14 40.8,16.8 38,23 35.2,16.8 29,14 35.2,11.2" fill="#0a0a0f"/>
+            <circle cx="38" cy="14" r="3"   fill="rgba(10,10,15,0.55)"/>
+            <circle cx="38" cy="14" r="1.3" fill="#ffffff" opacity="0.9"/>
+        </svg>`;
         document.body.appendChild(fab);
 
         fab.addEventListener('click', async () => {
@@ -133,8 +151,9 @@ function init() {
             const rawText = inputEl.value ?? inputEl.innerText;
             if (!rawText.trim()) return;
 
-            fab.disabled    = true;
-            fab.textContent = '⏳';
+            fab.disabled = true;
+            fab.dataset.loading = 'true';
+            fab.innerHTML = `<span id="pm-fab-loading">···</span>`;
 
             try {
                 const session = await LanguageModel.create({
@@ -145,7 +164,7 @@ function init() {
                             const pct = Math.round((e.loaded / e.total) * 100);
                             if (pct !== lastPct) {
                                 lastPct = pct;
-                                fab.textContent = `${pct}%`;
+                                fab.innerHTML = `<span id="pm-fab-loading">${pct}%</span>`;
                                 console.log(`Gemini Nano downloading: ${pct}%`);
                             }
                         });
@@ -162,8 +181,16 @@ function init() {
                 }
                 inputEl.dispatchEvent(new Event('input', { bubbles: true }));
             } finally {
-                fab.disabled    = false;
-                fab.textContent = '✨';
+                fab.disabled = false;
+                delete fab.dataset.loading;
+                fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="22" height="22">
+                    <line x1="12" y1="42" x2="35" y2="17" stroke="#0a0a0f" stroke-width="7" stroke-linecap="round"/>
+                    <circle cx="12" cy="42" r="5" fill="#0a0a0f"/>
+                    <circle cx="12" cy="42" r="3" fill="rgba(10,10,15,0.6)"/>
+                    <polygon points="38,5 40.8,11.2 47,14 40.8,16.8 38,23 35.2,16.8 29,14 35.2,11.2" fill="#0a0a0f"/>
+                    <circle cx="38" cy="14" r="3"   fill="rgba(10,10,15,0.55)"/>
+                    <circle cx="38" cy="14" r="1.3" fill="#ffffff" opacity="0.9"/>
+                </svg>`;
             }
         });
 
@@ -181,6 +208,28 @@ function init() {
                 const { score, detected } = lintPrompt(text);
 
                 popup.innerHTML = `
+                    <div id="pm-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="18" height="18" style="flex-shrink:0">
+                            <defs>
+                                <linearGradient id="pm-hdr-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#f59e0b"/>
+                                    <stop offset="100%" stop-color="#7c3aed"/>
+                                </linearGradient>
+                            </defs>
+                            <path d="M 14,23 L 17,13 L 21,20.5 L 26,7 L 31,20.5 L 35,13 L 38,23 Z" fill="url(#pm-hdr-grad)"/>
+                            <rect x="14" y="21.5" width="24" height="6.5" rx="3.2" fill="url(#pm-hdr-grad)"/>
+                            <circle cx="17" cy="13" r="2.4" fill="#f59e0b"/>
+                            <circle cx="26" cy="7"  r="2.8" fill="#fbbf24"/>
+                            <circle cx="35" cy="13" r="2.4" fill="#8b5cf6"/>
+                            <circle cx="26" cy="7"  r="1.2" fill="#ffffff" opacity="0.9"/>
+                            <rect x="20" y="30" width="12" height="2"  rx="1" fill="#ffffff"/>
+                            <rect x="23" y="30" width="6"  height="18" rx="3" fill="#ffffff"/>
+                            <rect x="20" y="46" width="12" height="2"  rx="1" fill="#ffffff"/>
+                            <circle cx="26" cy="50" r="2" fill="#f59e0b"/>
+                        </svg>
+                        <span id="pm-header-title">Prompt <span id="pm-header-master">Master</span></span>
+                    </div>
+                    <div id="pm-divider"></div>
                     <div id="pm-score-ring">${score}<span>/100</span></div>
                     <ul id="pm-checklist">
                         ${COMPONENTS.map(c => `

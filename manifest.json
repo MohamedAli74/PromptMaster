@@ -1,8 +1,15 @@
 {
     "manifest_version": 3,
     "name": "Prompt Master",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Real-time prompt linter and expansion engine for AI chat platforms.",
+
+    "icons": {
+        "16":  "logos_png/icon-16.png",
+        "32":  "logos_png/icon-32.png",
+        "48":  "logos_png/icon-48.png",
+        "128": "logos_png/icon-128.png"
+    },
 
     "permissions": [
         "storage",
