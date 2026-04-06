@@ -15,36 +15,106 @@ const PLATFORMS = {
     'gemini.google.com': { inputSelector: '.ql-editor' },
 };
 
-const masterPrompt = `You are a Senior Prompt Engineer. Your only job is to REWRITE the user's raw input as a high-performance prompt using the RCTCF Framework. You are a rewriter, not an answerer.
+const masterPrompt = `You are a Senior Prompt Engineer. Your only job is to REWRITE the user's raw input into a single, well-structured prompt paragraph. You are a rewriter — not an answerer, not an advisor.
 
-RCTCF Framework:
-- Role: assign the most relevant expert persona
-- Context: add necessary background to ground the AI
-- Task: sharpen the core action verb
-- Constraint: add professional boundaries (no fluff, step-by-step, etc.)
-- Format: choose the most useful output structure (markdown, table, list, etc.)
+When rewriting, silently apply these improvements (do NOT label them in the output):
+- Open with an expert persona ("Act as a...")
+- Add relevant context to ground the AI
+- Sharpen the core task with a clear action verb
+- Add professional constraints (no fluff, concise, step-by-step, etc.)
+- End with a format instruction (markdown, table, bullet list, etc.)
 
-PLACEHOLDER RULES — apply these whenever the input is missing specifics:
-- If a detail is clearly missing and has one right answer: write [fill-in: description] — e.g. [fill-in: your target company name]
-- If a detail is ambiguous and has multiple valid options: write [choice: option A | option B | option C] — e.g. [choice: bullet points | numbered list | table]
-- Never hallucinate specific details — use placeholders instead
-- The output must be immediately usable once the user fills in the blanks
+IMPORTANT — Output format:
+- Write a single cohesive prompt paragraph or 2-3 short sentences
+- Do NOT use section labels like "Role:", "Context:", "Task:", "Constraint:", "Format:" in the output
+- Weave all elements naturally into one flowing prompt
+
+PLACEHOLDER RULES — when the input is missing specifics:
+- Missing detail with one right answer → [fill-in: description], e.g. [fill-in: your company name]
+- Ambiguous preference with valid options → [choice: option A | option B | option C]
+- Never guess or hallucinate specifics — use placeholders instead
 
 EXAMPLES:
 
 Raw input: "help me write a cover letter"
-Rewritten: "Act as a professional career coach with 10 years of hiring experience. I am applying for a [fill-in: job title] role at [fill-in: company name]. My background includes [fill-in: 2-3 key skills or experiences]. Write a compelling cover letter that highlights my strengths and fits the role. Keep it under 400 words, no clichés, confident professional tone. Format as [choice: plain paragraphs | bullet-point highlights | hybrid with intro paragraph + bullets]."
+Rewritten: "Act as a professional career coach with 10 years of hiring experience. I am applying for a [fill-in: job title] role at [fill-in: company name]. My background includes [fill-in: 2-3 key skills or experiences]. Write a compelling cover letter that highlights my strengths, stays under 400 words, avoids clichés, and uses a confident professional tone. Format as [choice: plain paragraphs | bullet-point highlights]."
 
 Raw input: "explain recursion"
-Rewritten: "Act as a computer science tutor explaining to a [choice: complete beginner | developer who knows loops but not recursion | CS student preparing for interviews]. Explain the concept of recursion clearly, using a real-world analogy first, then a code example in [choice: Python | JavaScript | pseudocode]. End with the most common mistake beginners make with recursion. Keep the explanation concise — no more than 300 words."
+Rewritten: "Act as a computer science tutor. Explain recursion to a [choice: complete beginner | developer who knows loops | CS student prepping for interviews] using a real-world analogy first, followed by a short code example in [choice: Python | JavaScript | pseudocode]. End with the single most common mistake beginners make. Keep it under 300 words."
 
 STRICT RULES:
-- Do NOT answer or respond to the user's input
-- Do NOT provide information, advice, or solutions about the topic
-- Do NOT include any preamble like "Here is your prompt:" or "Sure!"
-- Do NOT use JSON or code blocks
-- Output ONLY the rewritten prompt text
-- Start immediately with the first word of the rewritten prompt`;
+- Do NOT answer, solve, or respond to the topic of the user's input
+- Do NOT write section headers or labels (Role:, Context:, Task:, etc.)
+- Do NOT include preamble ("Here is your prompt:", "Sure!", etc.)
+- Do NOT use JSON or markdown code blocks
+- Output the rewritten prompt and then STOP — nothing after it`;
+
+// ----------------------------------------------------------------
+// Loading animation — runs inside the input field while wand generates
+// ----------------------------------------------------------------
+const PARTICLE_CHARS = ['*', '+', '-', '=', '~', '^', '!', '·', 'x', 'o'];
+
+const PM_WAND_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="22" height="22">
+    <line x1="12" y1="42" x2="35" y2="17" stroke="#0a0a0f" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="12" cy="42" r="5" fill="#0a0a0f"/>
+    <circle cx="12" cy="42" r="3" fill="rgba(10,10,15,0.6)"/>
+    <polygon points="38,5 40.8,11.2 47,14 40.8,16.8 38,23 35.2,16.8 29,14 35.2,11.2" fill="#0a0a0f"/>
+    <circle cx="38" cy="14" r="3"   fill="rgba(10,10,15,0.55)"/>
+    <circle cx="38" cy="14" r="1.3" fill="#ffffff" opacity="0.9"/>
+</svg>`;
+
+// React-safe write: uses the native setter so React's _valueTracker is NOT updated,
+// keeping it at the user's original text. When the expanded prompt is finally written
+// (also via native setter) and an input event is dispatched, React compares the new DOM
+// value to its stale tracker value, sees a real change, and correctly updates its state.
+const _nativeTextareaSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype, 'value'
+)?.set;
+
+function writeToInput(inputEl, text) {
+    if (inputEl.tagName === 'TEXTAREA' && _nativeTextareaSetter) {
+        _nativeTextareaSetter.call(inputEl, text);
+    } else {
+        inputEl.innerText = text;
+    }
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function startLoadingAnimation(inputEl) {
+    // One continuous stream of chars flowing clockwise around the border:
+    //   [0..12]  → top row        (left → right)
+    //   [13..14] → right side     (top  → bottom)
+    //   [15..27] → bottom row     (right → left)
+    //   [28..29] → left side      (bottom → top)
+    // Each frame shifts offset by +1, creating smooth rotation.
+    const POOL = 30;
+    const pool = Array.from(
+        { length: POOL },
+        () => PARTICLE_CHARS[Math.floor(Math.random() * PARTICLE_CHARS.length)]
+    );
+    let offset = 0;
+
+    const at = (i) => pool[(i + offset) % POOL];
+
+    const writeFrame = (text) => {
+        if (inputEl.tagName === 'TEXTAREA' && _nativeTextareaSetter) {
+            _nativeTextareaSetter.call(inputEl, text);
+        } else {
+            inputEl.innerText = text;
+        }
+    };
+
+    return setInterval(() => {
+        offset = (offset + 1) % POOL;
+
+        const top    = Array.from({ length: 13 }, (_, i) => at(i)).join(' ');
+        const right  = `${at(13)} ${at(14)}`;
+        const bottom = Array.from({ length: 13 }, (_, i) => at(27 - i)).join(' ');
+        const left   = `${at(29)} ${at(28)}`;
+
+        writeFrame(`${top}\n${left}   Prompt Master   ${right}\n${bottom}`);
+    }, 220);
+}
 
 function getPlatform() {
     const host = location.hostname.replace('www.', '');
@@ -148,14 +218,7 @@ function init() {
         // Magic Wand FAB
         const fab = document.createElement('button');
         fab.id = 'pm-fab';
-        fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="22" height="22">
-            <line x1="12" y1="42" x2="35" y2="17" stroke="#0a0a0f" stroke-width="7" stroke-linecap="round"/>
-            <circle cx="12" cy="42" r="5" fill="#0a0a0f"/>
-            <circle cx="12" cy="42" r="3" fill="rgba(10,10,15,0.6)"/>
-            <polygon points="38,5 40.8,11.2 47,14 40.8,16.8 38,23 35.2,16.8 29,14 35.2,11.2" fill="#0a0a0f"/>
-            <circle cx="38" cy="14" r="3"   fill="rgba(10,10,15,0.55)"/>
-            <circle cx="38" cy="14" r="1.3" fill="#ffffff" opacity="0.9"/>
-        </svg>`;
+        fab.innerHTML = PM_WAND_SVG;
         document.body.appendChild(fab);
 
         fab.addEventListener('click', async () => {
@@ -177,6 +240,8 @@ function init() {
             fab.dataset.loading = 'true';
             fab.innerHTML = `<span id="pm-fab-loading">···</span>`;
 
+            let animInterval = startLoadingAnimation(inputEl);
+
             try {
                 const session = await LanguageModel.create({
                     systemPrompt: masterPrompt,
@@ -197,23 +262,17 @@ function init() {
                     `Rewrite this as an RCTCF prompt. Do NOT answer it:\n\n${rawText}`
                 );
 
-                if (inputEl.value !== undefined) {
-                    inputEl.value = expandedText;
-                } else {
-                    inputEl.innerText = expandedText;
-                }
-                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                clearInterval(animInterval);
+                animInterval = null;
+                writeToInput(inputEl, expandedText);
+            } catch (err) {
+                writeToInput(inputEl, rawText);
+                console.error('Prompt Master: expansion failed', err);
             } finally {
+                clearInterval(animInterval); // no-op if already cleared on success
                 fab.disabled = false;
                 delete fab.dataset.loading;
-                fab.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="22" height="22">
-                    <line x1="12" y1="42" x2="35" y2="17" stroke="#0a0a0f" stroke-width="7" stroke-linecap="round"/>
-                    <circle cx="12" cy="42" r="5" fill="#0a0a0f"/>
-                    <circle cx="12" cy="42" r="3" fill="rgba(10,10,15,0.6)"/>
-                    <polygon points="38,5 40.8,11.2 47,14 40.8,16.8 38,23 35.2,16.8 29,14 35.2,11.2" fill="#0a0a0f"/>
-                    <circle cx="38" cy="14" r="3"   fill="rgba(10,10,15,0.55)"/>
-                    <circle cx="38" cy="14" r="1.3" fill="#ffffff" opacity="0.9"/>
-                </svg>`;
+                fab.innerHTML = PM_WAND_SVG;
             }
         });
 
