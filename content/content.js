@@ -185,9 +185,89 @@ function lintPrompt(text) {
 }
 
 // ----------------------------------------------------------------
+// Config Panel
+// ----------------------------------------------------------------
+async function buildConfigPanel() {
+    const res  = await fetch(chrome.runtime.getURL('config/config.html'));
+    const html = await res.text();
+
+    const panel = document.createElement('div');
+    panel.id        = 'pm-config';
+    panel.innerHTML = html;
+    document.body.appendChild(panel);
+
+    let selectedModule = null;
+
+    // Pre-populate if config already saved (re-open flow)
+    chrome.storage.sync.get(['pmConfig'], (result) => {
+        if (!result.pmConfig) return;
+        const { module, apiKey } = result.pmConfig;
+        const card = panel.querySelector(`.pm-card[data-module="${module}"]`);
+        if (card && !card.classList.contains('pm-card-disabled')) {
+            card.classList.add('pm-card-selected');
+            selectedModule = module;
+            panel.querySelector('#pm-config-confirm').disabled = false;
+        }
+        if (module === 'groq') {
+            panel.querySelector('#pm-key-section').style.display = 'block';
+            if (apiKey) panel.querySelector('#pm-api-key').value = apiKey;
+        }
+    });
+
+    // Card selection
+    panel.querySelectorAll('.pm-card:not(.pm-card-disabled)').forEach(card => {
+        card.addEventListener('click', () => {
+            panel.querySelectorAll('.pm-card').forEach(c => c.classList.remove('pm-card-selected'));
+            card.classList.add('pm-card-selected');
+            selectedModule = card.dataset.module;
+            panel.querySelector('#pm-key-section').style.display =
+                selectedModule === 'groq' ? 'block' : 'none';
+            panel.querySelector('#pm-config-confirm').disabled = false;
+        });
+    });
+
+    // Show / hide API key
+    panel.querySelector('#pm-key-toggle').addEventListener('click', () => {
+        const input  = panel.querySelector('#pm-api-key');
+        const btn    = panel.querySelector('#pm-key-toggle');
+        const hidden = input.type === 'password';
+        input.type      = hidden ? 'text' : 'password';
+        btn.textContent = hidden ? 'Hide' : 'Show';
+    });
+
+    // Confirm — save config and close
+    panel.querySelector('#pm-config-confirm').addEventListener('click', () => {
+        if (!selectedModule) return;
+        const apiKey = panel.querySelector('#pm-api-key').value.trim();
+        chrome.storage.sync.set({ pmConfig: { module: selectedModule, apiKey } }, () => {
+            chrome.storage.sync.remove('firstRun');
+            hideConfigPanel(panel);
+        });
+    });
+
+    // Skip — default to window.ai
+    panel.querySelector('#pm-config-skip').addEventListener('click', () => {
+        chrome.storage.sync.set({ pmConfig: { module: 'window.ai', apiKey: '' } }, () => {
+            chrome.storage.sync.remove('firstRun');
+            hideConfigPanel(panel);
+        });
+    });
+
+    return panel;
+}
+
+function showConfigPanel(panel) {
+    panel.classList.add('pm-config-open');
+}
+
+function hideConfigPanel(panel) {
+    panel.classList.remove('pm-config-open');
+}
+
+// ----------------------------------------------------------------
 // Init
 // ----------------------------------------------------------------
-function init() {
+async function init() {
     const platform = getPlatform();
     if (!platform) return;
 
@@ -207,6 +287,23 @@ function init() {
         <circle cx="26" cy="50" r="2" fill="#0a0a0f"/>
     </svg>`;
     document.body.appendChild(orb);
+
+    // Config panel — fetch markup, wire logic, append to DOM
+    const configPanel = await buildConfigPanel();
+
+    // Orb click: toggle config panel open / closed
+    orb.addEventListener('click', () => {
+        if (configPanel.classList.contains('pm-config-open')) {
+            hideConfigPanel(configPanel);
+        } else {
+            showConfigPanel(configPanel);
+        }
+    });
+
+    // First-run: auto-open config panel on fresh install
+    chrome.storage.sync.get(['firstRun'], (result) => {
+        if (result.firstRun) showConfigPanel(configPanel);
+    });
 
     // Glassy popup (hidden until user types)
     const popup = document.createElement('div');

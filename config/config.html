@@ -1,0 +1,58 @@
+<div id="pm-config-header">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="20" height="20" style="flex-shrink:0">
+        <defs>
+            <linearGradient id="pm-cfg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f59e0b"/>
+                <stop offset="100%" stop-color="#7c3aed"/>
+            </linearGradient>
+        </defs>
+        <path d="M 14,23 L 17,13 L 21,20.5 L 26,7 L 31,20.5 L 35,13 L 38,23 Z" fill="url(#pm-cfg-grad)"/>
+        <rect x="14" y="21.5" width="24" height="6.5" rx="3.2" fill="url(#pm-cfg-grad)"/>
+        <circle cx="17" cy="13" r="2.4" fill="#f59e0b"/>
+        <circle cx="26" cy="7"  r="2.8" fill="#fbbf24"/>
+        <circle cx="35" cy="13" r="2.4" fill="#8b5cf6"/>
+        <circle cx="26" cy="7"  r="1.2" fill="#ffffff" opacity="0.9"/>
+        <rect x="20" y="30" width="12" height="2"  rx="1" fill="#ffffff"/>
+        <rect x="23" y="30" width="6"  height="18" rx="3" fill="#ffffff"/>
+        <rect x="20" y="46" width="12" height="2"  rx="1" fill="#ffffff"/>
+        <circle cx="26" cy="50" r="2" fill="#f59e0b"/>
+    </svg>
+    <span id="pm-config-title">Prompt <span id="pm-config-master">Master</span></span>
+</div>
+
+<p id="pm-config-subtitle">Choose your AI backend to get started.</p>
+
+<div id="pm-config-cards">
+    <div class="pm-card" data-module="window.ai">
+        <div class="pm-card-badge">🔒 Best for privacy</div>
+        <div class="pm-card-name">window.ai</div>
+        <div class="pm-card-desc">Fully local — no data leaves your device. Requires Chrome 127+ with Gemini Nano.</div>
+        <div class="pm-card-privacy">Nothing is ever sent anywhere.</div>
+    </div>
+
+    <div class="pm-card" data-module="groq">
+        <div class="pm-card-badge">⚡ Best for speed</div>
+        <div class="pm-recommended-tag">Recommended</div>
+        <div class="pm-card-name">Groq</div>
+        <div class="pm-card-desc">Fast, free, 2-minute signup. No credit card needed.</div>
+        <div class="pm-card-privacy">Your prompt is sent to Groq's servers.</div>
+    </div>
+
+    <div class="pm-card pm-card-disabled" data-module="byok">
+        <div class="pm-card-badge">🎛️ Bring your own key</div>
+        <div class="pm-coming-soon">Coming soon</div>
+        <div class="pm-card-name">OpenAI / Gemini / Anthropic</div>
+        <div class="pm-card-desc">Use an existing API key from any major provider.</div>
+        <div class="pm-card-privacy">Your prompt is sent to your chosen provider.</div>
+    </div>
+</div>
+
+<div id="pm-key-section">
+    <div id="pm-key-wrapper">
+        <input type="password" id="pm-api-key" placeholder="Paste your Groq API key..." autocomplete="off" spellcheck="false">
+        <button id="pm-key-toggle">Show</button>
+    </div>
+</div>
+
+<button id="pm-config-confirm" disabled>Get Started</button>
+<button id="pm-config-skip">Skip for now — use window.ai</button>

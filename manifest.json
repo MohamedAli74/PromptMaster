@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Prompt Master",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Real-time prompt linter and expansion engine for AI chat platforms.",
 
     "icons": {
@@ -34,13 +34,13 @@
                 "https://gemini.google.com/*"
             ],
             "js": ["content/content.js"],
-            "css": ["content/content.css"],
+            "css": ["content/content.css", "config/config.css"],
             "run_at": "document_idle"
         }
     ],
 
     "web_accessible_resources": [{
-        "resources": ["sidebar/sidebar.html", "sidebar/sidebar.css", "sidebar/sidebar.js"],
+        "resources": ["sidebar/sidebar.html", "sidebar/sidebar.css", "sidebar/sidebar.js", "config/config.html"],
         "matches": [
             "https://chatgpt.com/*",
             "https://claude.ai/*",

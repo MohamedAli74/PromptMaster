@@ -1,8 +1,17 @@
 // Prompt Master — Background Service Worker (Manifest V3)
 // Handles cross-tab state, storage events, and message routing.
 
-chrome.runtime.onInstalled.addListener(() => {
-    // Initialize default storage on first install
+chrome.runtime.onInstalled.addListener((details) => {
+    // On fresh install: set firstRun flag if no config exists yet
+    if (details.reason === 'install') {
+        chrome.storage.sync.get(['pmConfig'], (result) => {
+            if (!result.pmConfig) {
+                chrome.storage.sync.set({ firstRun: true });
+            }
+        });
+    }
+
+    // Initialize default storage
     chrome.storage.sync.get(['templates', 'preferences'], (result) => {
         if (!result.templates) {
             chrome.storage.sync.set({ templates: [] });
