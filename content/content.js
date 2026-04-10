@@ -15,39 +15,7 @@ const PLATFORMS = {
     'gemini.google.com': { inputSelector: '.ql-editor' },
 };
 
-const masterPrompt = `You are a Senior Prompt Engineer. Your only job is to REWRITE the user's raw input into a single, well-structured prompt paragraph. You are a rewriter — not an answerer, not an advisor.
-
-When rewriting, silently apply these improvements (do NOT label them in the output):
-- Open with an expert persona ("Act as a...")
-- Add relevant context to ground the AI
-- Sharpen the core task with a clear action verb
-- Add professional constraints (no fluff, concise, step-by-step, etc.)
-- End with a format instruction (markdown, table, bullet list, etc.)
-
-IMPORTANT — Output format:
-- Write a single cohesive prompt paragraph or 2-3 short sentences
-- Do NOT use section labels like "Role:", "Context:", "Task:", "Constraint:", "Format:" in the output
-- Weave all elements naturally into one flowing prompt
-
-PLACEHOLDER RULES — when the input is missing specifics:
-- Missing detail with one right answer → [fill-in: description], e.g. [fill-in: your company name]
-- Ambiguous preference with valid options → [choice: option A | option B | option C]
-- Never guess or hallucinate specifics — use placeholders instead
-
-EXAMPLES:
-
-Raw input: "help me write a cover letter"
-Rewritten: "Act as a professional career coach with 10 years of hiring experience. I am applying for a [fill-in: job title] role at [fill-in: company name]. My background includes [fill-in: 2-3 key skills or experiences]. Write a compelling cover letter that highlights my strengths, stays under 400 words, avoids clichés, and uses a confident professional tone. Format as [choice: plain paragraphs | bullet-point highlights]."
-
-Raw input: "explain recursion"
-Rewritten: "Act as a computer science tutor. Explain recursion to a [choice: complete beginner | developer who knows loops | CS student prepping for interviews] using a real-world analogy first, followed by a short code example in [choice: Python | JavaScript | pseudocode]. End with the single most common mistake beginners make. Keep it under 300 words."
-
-STRICT RULES:
-- Do NOT answer, solve, or respond to the topic of the user's input
-- Do NOT write section headers or labels (Role:, Context:, Task:, etc.)
-- Do NOT include preamble ("Here is your prompt:", "Sure!", etc.)
-- Do NOT use JSON or markdown code blocks
-- Output the rewritten prompt and then STOP — nothing after it`;
+// masterPrompt lives in modules/expand.js
 
 // ----------------------------------------------------------------
 // Loading animation — runs inside the input field while wand generates
@@ -319,56 +287,29 @@ async function init() {
         document.body.appendChild(fab);
 
         fab.addEventListener('click', async () => {
-            if (typeof LanguageModel === 'undefined') {
-                alert('Magic Wand requires Gemini Nano.\n\n1. Go to chrome://flags\n2. Enable #optimization-guide-on-device-model (BypassPerfRequirement)\n3. Enable #prompt-api-for-gemini-nano\n4. Relaunch Chrome and wait for the model to download.');
-                return;
-            }
-
-            const availability = await LanguageModel.availability();
-            if (availability === 'unavailable') {
-                alert('Gemini Nano is not available on this device. Check hardware requirements at developer.chrome.com/docs/ai/get-started');
-                return;
-            }
-
             const rawText = inputEl.value ?? inputEl.innerText;
             if (!rawText.trim()) return;
 
             fab.disabled = true;
-            fab.dataset.loading = 'true';
             fab.innerHTML = `<span id="pm-fab-loading">···</span>`;
-
             let animInterval = startLoadingAnimation(inputEl);
 
-            try {
-                const session = await LanguageModel.create({
-                    systemPrompt: masterPrompt,
-                    outputLanguage: 'en',
-                    monitor(monitor) {
-                        let lastPct = -1;
-                        monitor.addEventListener('downloadprogress', (e) => {
-                            const pct = Math.round((e.loaded / e.total) * 100);
-                            if (pct !== lastPct) {
-                                lastPct = pct;
-                                fab.innerHTML = `<span id="pm-fab-loading">${pct}%</span>`;
-                                console.log(`Gemini Nano downloading: ${pct}%`);
-                            }
-                        });
-                    },
-                });
-                const expandedText = await session.prompt(
-                    `Rewrite this as an RCTCF prompt. Do NOT answer it:\n\n${rawText}`
-                );
+            const result = await expand(rawText, (pct) => {
+                fab.innerHTML = `<span id="pm-fab-loading">${pct}%</span>`;
+            });
 
-                clearInterval(animInterval);
-                animInterval = null;
-                writeToInput(inputEl, expandedText);
-            } catch (err) {
+            clearInterval(animInterval);
+
+            if (result.error) {
                 writeToInput(inputEl, rawText);
-                console.error('Prompt Master: expansion failed', err);
-            } finally {
-                clearInterval(animInterval); // no-op if already cleared on success
+                fab.innerHTML = `<span id="pm-fab-loading">${result.error}</span>`;
+                setTimeout(() => {
+                    fab.disabled = false;
+                    fab.innerHTML = PM_WAND_SVG;
+                }, 3000);
+            } else {
+                writeToInput(inputEl, result.text);
                 fab.disabled = false;
-                delete fab.dataset.loading;
                 fab.innerHTML = PM_WAND_SVG;
             }
         });

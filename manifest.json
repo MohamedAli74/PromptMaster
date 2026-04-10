@@ -19,7 +19,8 @@
     "host_permissions": [
         "https://chatgpt.com/*",
         "https://claude.ai/*",
-        "https://gemini.google.com/*"
+        "https://gemini.google.com/*",
+        "https://api.groq.com/*"
     ],
 
     "background": {
@@ -33,7 +34,13 @@
                 "https://claude.ai/*",
                 "https://gemini.google.com/*"
             ],
-            "js": ["content/content.js"],
+            "js": [
+                "modules/logger.js",
+                "modules/groq.js",
+                "modules/window-ai.js",
+                "modules/expand.js",
+                "content/content.js"
+            ],
             "css": ["content/content.css", "config/config.css"],
             "run_at": "document_idle"
         }
