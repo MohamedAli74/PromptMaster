@@ -10,9 +10,53 @@
 // Platform targets
 // ----------------------------------------------------------------
 const PLATFORMS = {
-    'chatgpt.com':       { inputSelector: '#prompt-textarea' },
-    'claude.ai':         { inputSelector: '[contenteditable="true"]' },
-    'gemini.google.com': { inputSelector: '.ql-editor' },
+    'chatgpt.com': {
+        inputSelector:     '#prompt-textarea',
+        // Dictation button is always present for logged-in users regardless of input state
+        fabAnchorSelector: 'button[aria-label="Start dictation"], [data-testid="send-button"], [data-testid="composer-speech-button"]',
+        getFabTarget(anchorEl) {
+            // Walk up to the flex row (.ms-auto...) — stable across re-renders
+            const flexRow = anchorEl.closest('[class*="ms-auto"]');
+            if (!flexRow) return null;
+            return { container: flexRow };
+        },
+        getInsertBefore: (container) => container.lastElementChild,
+        isSendVisible(container) {
+            return !!container.querySelector('[data-testid="send-button"]');
+        },
+        // React aggressively re-mounts the button row; polling is more reliable than MutationObserver
+        usePolling: true,
+    },
+
+    'claude.ai': {
+        inputSelector:     '[contenteditable="true"]',
+        // Model selector is always visible regardless of input state
+        fabAnchorSelector: 'button[data-testid="model-selector-dropdown"]',
+        getFabTarget(anchorEl) {
+            const modelWrapper = anchorEl.closest('[class*="transition-all"]');
+            if (!modelWrapper) return null;
+            return { container: modelWrapper.parentElement };    // top flex row
+        },
+        // Right section is always the last child of the flex row
+        getInsertBefore: (container) => container.lastElementChild,
+        isSendVisible(container) {
+            return !!container.querySelector('button[aria-label="Send message"]');
+        },
+    },
+
+    'gemini.google.com': {
+        inputSelector:     '.ql-editor',
+        // .send-button-container is always in DOM — just toggles .visible / .disabled
+        fabAnchorSelector: '.send-button-container',
+        getFabTarget(anchorEl) {
+            return { container: anchorEl.parentElement };   // .input-buttons-wrapper-bottom
+        },
+        // Always insert directly before .send-button-container
+        getInsertBefore: (container) => container.querySelector('.send-button-container'),
+        isSendVisible(container) {
+            return !!container.querySelector('.send-button-container.visible');
+        },
+    },
 };
 
 // masterPrompt lives in modules/expand.js
@@ -279,13 +323,100 @@ async function init() {
     popup.style.display = 'none';
     document.body.appendChild(popup);
 
-    observeInput(platform.inputSelector, (inputEl) => {
-        // Magic Wand FAB
-        const fab = document.createElement('button');
-        fab.id = 'pm-fab';
-        fab.innerHTML = PM_WAND_SVG;
-        document.body.appendChild(fab);
+    // Magic Wand FAB — #pm-fab-wrap is the injected element; #pm-fab is the button inside it
+    const fab = document.createElement('button');
+    fab.id = 'pm-fab';
+    fab.innerHTML = PM_WAND_SVG;
 
+    const fabWrap = document.createElement('div');
+    fabWrap.id = 'pm-fab-wrap';
+    fabWrap.style.display = 'none';
+    fabWrap.appendChild(fab);
+
+    // Animation state — prevents double-trigger when injectAndSync runs frequently
+    let fabVisible  = false;
+    let onShowDone  = null;
+    let onHideDone  = null;
+
+    function showFab() {
+        if (fabVisible) return;
+        fabVisible = true;
+        if (onHideDone) { fab.removeEventListener('animationend', onHideDone); onHideDone = null; }
+        fab.classList.remove('pm-fab-out');
+        fabWrap.style.display = 'flex';
+        void fab.offsetWidth;               // force reflow so the animation restarts cleanly
+        fab.classList.add('pm-fab-in');
+        onShowDone = () => { fab.classList.remove('pm-fab-in'); onShowDone = null; };
+        fab.addEventListener('animationend', onShowDone, { once: true });
+
+        // Per-session reminder — fires once per tab session on first FAB appearance
+        if (!sessionStorage.getItem('pm-reminded')) {
+            sessionStorage.setItem('pm-reminded', '1');
+            const rect = fabWrap.getBoundingClientRect();
+            const tip  = document.createElement('div');
+            tip.id          = 'pm-fab-tip';
+            tip.textContent = 'expand your prompt ✦';
+            tip.style.left  = `${rect.left + rect.width / 2}px`;
+            tip.style.top   = `${rect.top - 10}px`;
+            document.body.appendChild(tip);
+            tip.addEventListener('animationend', () => tip.remove(), { once: true });
+        }
+    }
+
+    function hideFab() {
+        if (!fabVisible) return;
+        fabVisible = false;
+        if (onShowDone) { fab.removeEventListener('animationend', onShowDone); onShowDone = null; }
+        fab.classList.remove('pm-fab-in');
+        fab.classList.add('pm-fab-out');
+        onHideDone = () => {
+            fab.classList.remove('pm-fab-out');
+            if (!fabVisible) fabWrap.style.display = 'none';
+            onHideDone = null;
+        };
+        fab.addEventListener('animationend', onHideDone, { once: true });
+    }
+
+    // Inject FAB between model config and send button on each platform
+    observeInput(platform.fabAnchorSelector, (initialAnchorEl) => {
+        const initialTarget = platform.getFabTarget(initialAnchorEl);
+        if (!initialTarget) return;
+
+        function injectAndSync() {
+            // Re-query anchor on every tick — handles React/Angular replacing the container element
+            const anchorEl = document.querySelector(platform.fabAnchorSelector);
+            if (!anchorEl) { hideFab(); return; }
+            const target = platform.getFabTarget(anchorEl);
+            if (!target) { hideFab(); return; }
+            const { container } = target;
+
+            const before = platform.getInsertBefore(container);
+            if (!before) { hideFab(); return; }
+
+            if (fabWrap.nextElementSibling !== before || fabWrap.parentElement !== container) {
+                container.insertBefore(fabWrap, before);
+            }
+            if (platform.isSendVisible(container)) { showFab(); } else { hideFab(); }
+        }
+
+        injectAndSync();
+
+        if (platform.usePolling) {
+            // React re-mounts the button row on each render; poll instead of watching a stale ref
+            setInterval(injectAndSync, 150);
+        } else {
+            // Observe parent of the initial container — catches if the framework replaces container itself
+            const watchEl = initialTarget.container.parentElement ?? initialTarget.container;
+            new MutationObserver(injectAndSync).observe(watchEl, {
+                childList: true,
+                subtree: true,
+                attributes: true,           // needed for Gemini — class toggle, not DOM swap
+                attributeFilter: ['class'],
+            });
+        }
+    });
+
+    observeInput(platform.inputSelector, (inputEl) => {
         fab.addEventListener('click', async () => {
             const rawText = inputEl.value ?? inputEl.innerText;
             if (!rawText.trim()) return;
