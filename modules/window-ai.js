@@ -21,6 +21,8 @@ async function expandWithWindowAI(rawText, systemPrompt, onDownloadProgress) {
         monitor(monitor) {
             let lastPct = -1;
             monitor.addEventListener('downloadprogress', (e) => {
+                // Model already cached — skip, no progress to show
+                if (e.loaded >= e.total) return;
                 const pct = Math.round((e.loaded / e.total) * 100);
                 if (pct !== lastPct) {
                     lastPct = pct;
