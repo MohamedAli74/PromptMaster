@@ -11,6 +11,7 @@
 // ----------------------------------------------------------------
 const PLATFORMS = {
     'chatgpt.com': {
+        orbTop:            68,   // px — clears the ChatGPT header bar (~48px)
         inputSelector:     '#prompt-textarea',
         // Dictation button is always present for logged-in users regardless of input state
         fabAnchorSelector: 'button[aria-label="Start dictation"], [data-testid="send-button"], [data-testid="composer-speech-button"]',
@@ -29,6 +30,7 @@ const PLATFORMS = {
     },
 
     'claude.ai': {
+        orbTop:            80,   // px — clears the Claude header bar (~56px) with share/incognito buttons
         inputSelector:     '[contenteditable="true"]',
         // Model selector is always visible regardless of input state
         fabAnchorSelector: 'button[data-testid="model-selector-dropdown"]',
@@ -45,6 +47,7 @@ const PLATFORMS = {
     },
 
     'gemini.google.com': {
+        orbTop:            84,   // px — clears the Gemini/Google header bar (~64px) with profile circle
         inputSelector:     '.ql-editor',
         // .send-button-container is always in DOM — just toggles .visible / .disabled
         fabAnchorSelector: '.send-button-container',
@@ -133,6 +136,12 @@ function getPlatform() {
     return PLATFORMS[host] || null;
 }
 
+// Returns false when the extension has been reloaded mid-session (dev workflow).
+// Prevents "Extension context invalidated" crashes on chrome.* calls.
+function chromeAlive() {
+    try { return !!chrome.runtime.id; } catch { return false; }
+}
+
 // ----------------------------------------------------------------
 // MutationObserver — wait for the input to appear in the DOM
 // ----------------------------------------------------------------
@@ -197,6 +206,45 @@ function lintPrompt(text) {
 }
 
 // ----------------------------------------------------------------
+// Popup render helper
+// ----------------------------------------------------------------
+function renderPopup(popup, score, detected) {
+    popup.innerHTML = `
+        <div id="pm-header">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="18" height="18" style="flex-shrink:0">
+                <defs>
+                    <linearGradient id="pm-hdr-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#f59e0b"/>
+                        <stop offset="100%" stop-color="#7c3aed"/>
+                    </linearGradient>
+                </defs>
+                <path d="M 14,23 L 17,13 L 21,20.5 L 26,7 L 31,20.5 L 35,13 L 38,23 Z" fill="url(#pm-hdr-grad)"/>
+                <rect x="14" y="21.5" width="24" height="6.5" rx="3.2" fill="url(#pm-hdr-grad)"/>
+                <circle cx="17" cy="13" r="2.4" fill="#f59e0b"/>
+                <circle cx="26" cy="7"  r="2.8" fill="#fbbf24"/>
+                <circle cx="35" cy="13" r="2.4" fill="#8b5cf6"/>
+                <circle cx="26" cy="7"  r="1.2" fill="#ffffff" opacity="0.9"/>
+                <rect x="20" y="30" width="12" height="2"  rx="1" fill="#ffffff"/>
+                <rect x="23" y="30" width="6"  height="18" rx="3" fill="#ffffff"/>
+                <rect x="20" y="46" width="12" height="2"  rx="1" fill="#ffffff"/>
+                <circle cx="26" cy="50" r="2" fill="#f59e0b"/>
+            </svg>
+            <span id="pm-header-title">Prompt <span id="pm-header-master">Master</span></span>
+        </div>
+        <div id="pm-divider"></div>
+        <div id="pm-score-ring">${score}<span>/100</span></div>
+        <ul id="pm-checklist">
+            ${COMPONENTS.map(c => `
+                <li class="${detected[c.key] ? 'pm-pass' : 'pm-fail'}">
+                    <span class="pm-icon">${detected[c.key] ? '✓' : '✗'}</span>
+                    ${c.label}
+                </li>
+            `).join('')}
+        </ul>
+    `;
+}
+
+// ----------------------------------------------------------------
 // Config Panel
 // ----------------------------------------------------------------
 async function buildConfigPanel() {
@@ -251,6 +299,13 @@ async function buildConfigPanel() {
     panel.querySelector('#pm-config-confirm').addEventListener('click', () => {
         if (!selectedModule) return;
         const apiKey = panel.querySelector('#pm-api-key').value.trim();
+        if (selectedModule === 'groq' && !apiKey) {
+            const input = panel.querySelector('#pm-api-key');
+            input.focus();
+            input.style.borderColor = '#f59e0b';
+            setTimeout(() => { input.style.borderColor = ''; }, 1500);
+            return;
+        }
         chrome.storage.sync.set({ pmConfig: { module: selectedModule, apiKey } }, () => {
             chrome.storage.sync.remove('firstRun');
             hideConfigPanel(panel);
@@ -298,30 +353,74 @@ async function init() {
         <rect x="20" y="46" width="12" height="2"  rx="1" fill="#0a0a0f"/>
         <circle cx="26" cy="50" r="2" fill="#0a0a0f"/>
     </svg>`;
+    orb.style.top   = `${platform.orbTop}px`;
     document.body.appendChild(orb);
 
     // Config panel — fetch markup, wire logic, append to DOM
     const configPanel = await buildConfigPanel();
 
-    // Orb click: toggle config panel open / closed
-    orb.addEventListener('click', () => {
-        if (configPanel.classList.contains('pm-config-open')) {
-            hideConfigPanel(configPanel);
-        } else {
-            showConfigPanel(configPanel);
-        }
-    });
-
-    // First-run: auto-open config panel on fresh install
-    chrome.storage.sync.get(['firstRun'], (result) => {
-        if (result.firstRun) showConfigPanel(configPanel);
-    });
-
-    // Glassy popup (hidden until user types)
+    // Glassy popup — shown/hidden by orb click, not by input events
     const popup = document.createElement('div');
-    popup.id           = 'pm-popup';
+    popup.id            = 'pm-popup';
+    popup.style.top     = `${platform.orbTop + 44 + 8}px`;
     popup.style.display = 'none';
     document.body.appendChild(popup);
+
+    let popupOpen = false;
+
+    function showPopup() {
+        const inputEl = document.querySelector(platform.inputSelector);
+        const text    = inputEl ? (inputEl.value ?? inputEl.innerText) : '';
+        if (!text.trim()) return;                   // nothing to score yet
+        const { score, detected } = lintPrompt(text);
+        renderPopup(popup, score, detected);
+        popup.style.display = 'block';
+        popupOpen = true;
+    }
+
+    function hidePopup() {
+        popup.style.display = 'none';
+        popupOpen = false;
+    }
+
+    // Orb click: priority — no config → config panel; has config → toggle popup
+    orb.addEventListener('click', (e) => {
+        e.stopPropagation();                        // prevent document listener from closing popup immediately
+        try {
+            chrome.storage.sync.get(['pmConfig'], (result) => {
+                if (!result.pmConfig) {
+                    // Not configured yet — config panel takes priority
+                    configPanel.classList.contains('pm-config-open')
+                        ? hideConfigPanel(configPanel)
+                        : showConfigPanel(configPanel);
+                } else {
+                    // Configured — close config if open, then toggle popup
+                    if (configPanel.classList.contains('pm-config-open')) {
+                        hideConfigPanel(configPanel);
+                    }
+                    popupOpen ? hidePopup() : showPopup();
+                }
+            });
+        } catch { /* extension reloaded mid-session — user needs to refresh the page */ }
+    });
+
+    // Click outside popup or orb → close popup
+    popup.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('click', () => { if (popupOpen) hidePopup(); });
+
+    // First-run: auto-open config panel on fresh install
+    try {
+        chrome.storage.sync.get(['firstRun'], (result) => {
+            if (result.firstRun) showConfigPanel(configPanel);
+        });
+    } catch { /* context already invalidated */ }
+
+    // Re-attach PM body elements if the platform framework clears body children (e.g. Next.js hydration)
+    new MutationObserver(() => {
+        if (!document.body.contains(orb))         document.body.appendChild(orb);
+        if (!document.body.contains(configPanel)) document.body.appendChild(configPanel);
+        if (!document.body.contains(popup))       document.body.appendChild(popup);
+    }).observe(document.body, { childList: true });
 
     // Magic Wand FAB — #pm-fab-wrap is the injected element; #pm-fab is the button inside it
     const fab = document.createElement('button');
@@ -446,57 +545,18 @@ async function init() {
         });
 
         let debounceTimer;
-        let hideTimer;
 
+        // Keep popup content fresh while it's open; auto-close when input is cleared
         inputEl.addEventListener('input', () => {
             clearTimeout(debounceTimer);
-            clearTimeout(hideTimer);
-
             debounceTimer = setTimeout(() => {
                 const text = inputEl.value ?? inputEl.innerText;
-                if (!text.trim()) { popup.style.display = 'none'; return; }
-
-                const { score, detected } = lintPrompt(text);
-
-                popup.innerHTML = `
-                    <div id="pm-header">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="18" height="18" style="flex-shrink:0">
-                            <defs>
-                                <linearGradient id="pm-hdr-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#f59e0b"/>
-                                    <stop offset="100%" stop-color="#7c3aed"/>
-                                </linearGradient>
-                            </defs>
-                            <path d="M 14,23 L 17,13 L 21,20.5 L 26,7 L 31,20.5 L 35,13 L 38,23 Z" fill="url(#pm-hdr-grad)"/>
-                            <rect x="14" y="21.5" width="24" height="6.5" rx="3.2" fill="url(#pm-hdr-grad)"/>
-                            <circle cx="17" cy="13" r="2.4" fill="#f59e0b"/>
-                            <circle cx="26" cy="7"  r="2.8" fill="#fbbf24"/>
-                            <circle cx="35" cy="13" r="2.4" fill="#8b5cf6"/>
-                            <circle cx="26" cy="7"  r="1.2" fill="#ffffff" opacity="0.9"/>
-                            <rect x="20" y="30" width="12" height="2"  rx="1" fill="#ffffff"/>
-                            <rect x="23" y="30" width="6"  height="18" rx="3" fill="#ffffff"/>
-                            <rect x="20" y="46" width="12" height="2"  rx="1" fill="#ffffff"/>
-                            <circle cx="26" cy="50" r="2" fill="#f59e0b"/>
-                        </svg>
-                        <span id="pm-header-title">Prompt <span id="pm-header-master">Master</span></span>
-                    </div>
-                    <div id="pm-divider"></div>
-                    <div id="pm-score-ring">${score}<span>/100</span></div>
-                    <ul id="pm-checklist">
-                        ${COMPONENTS.map(c => `
-                            <li class="${detected[c.key] ? 'pm-pass' : 'pm-fail'}">
-                                <span class="pm-icon">${detected[c.key] ? '✓' : '✗'}</span>
-                                ${c.label}
-                            </li>
-                        `).join('')}
-                    </ul>
-                `;
-                popup.style.display = 'block';
+                if (!text.trim()) { hidePopup(); return; }
+                if (popupOpen) {
+                    const { score, detected } = lintPrompt(text);
+                    renderPopup(popup, score, detected);
+                }
             }, 300);
-
-            hideTimer = setTimeout(() => {
-                popup.style.display = 'none';
-            }, 3000);
         });
     });
 }

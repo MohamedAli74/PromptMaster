@@ -41,6 +41,7 @@ STRICT RULES:
 // onProgress(pct) is fired during model download (window.ai only)
 async function expand(rawText, onProgress) {
     return new Promise((resolve) => {
+        try { chrome.runtime.id; } catch { return resolve({ error: 'context lost — refresh page' }); }
         chrome.storage.sync.get(['pmConfig'], async (result) => {
             const config = result.pmConfig || { module: 'window.ai', apiKey: '' };
 

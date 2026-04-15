@@ -7,7 +7,7 @@
    ---------------------------------------------------------------- */
 #pm-orb {
     position: fixed;
-    top: 16px;
+    /* top is set per-platform in content.js via platform.orbTop */
     right: 16px;
     width: 44px;
     height: 44px;
@@ -35,7 +35,7 @@
    ---------------------------------------------------------------- */
 #pm-popup {
     position: fixed;
-    top: 68px;
+    /* top is set per-platform in content.js: orbTop + 44px (orb height) + 8px (gap) */
     right: 16px;
     width: 220px;
     padding: 14px 16px 16px;
