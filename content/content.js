@@ -245,33 +245,48 @@ function renderPopup(popup, score, detected) {
 }
 
 // ----------------------------------------------------------------
-// Config Panel
+// Settings Panel
 // ----------------------------------------------------------------
-async function buildConfigPanel() {
-    const res  = await fetch(chrome.runtime.getURL('config/config.html'));
+async function buildSettingsPanel(onTriggerChange) {
+    const res  = await fetch(chrome.runtime.getURL('settings/settings.html'));
     const html = await res.text();
 
-    const panel = document.createElement('div');
-    panel.id        = 'pm-config';
-    panel.innerHTML = html;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const panel = tmp.firstElementChild;
     document.body.appendChild(panel);
 
     let selectedModule = null;
 
-    // Pre-populate if config already saved (re-open flow)
-    chrome.storage.sync.get(['pmConfig'], (result) => {
-        if (!result.pmConfig) return;
-        const { module, apiKey } = result.pmConfig;
-        const card = panel.querySelector(`.pm-card[data-module="${module}"]`);
-        if (card && !card.classList.contains('pm-card-disabled')) {
-            card.classList.add('pm-card-selected');
-            selectedModule = module;
-            panel.querySelector('#pm-config-confirm').disabled = false;
-        }
-        if (module === 'groq') {
-            panel.querySelector('#pm-key-section').style.display = 'block';
-            if (apiKey) panel.querySelector('#pm-api-key').value = apiKey;
-        }
+    // Pre-populate saved config + prefs on re-open
+    try {
+        chrome.storage.sync.get(['pmConfig', 'pmPrefs'], (result) => {
+            if (result.pmConfig) {
+                const { module, apiKey } = result.pmConfig;
+                const card = panel.querySelector(`.pm-card[data-module="${module}"]`);
+                if (card && !card.classList.contains('pm-card-disabled')) {
+                    card.classList.add('pm-card-selected');
+                    selectedModule = module;
+                    panel.querySelector('#pm-config-confirm').disabled = false;
+                }
+                if (module === 'groq') {
+                    panel.querySelector('#pm-key-section').style.display = 'block';
+                    if (apiKey) panel.querySelector('#pm-api-key').value = apiKey;
+                }
+            }
+            const prefs = result.pmPrefs || { popupTrigger: 'click' };
+            panel.querySelector('#pm-pref-popup-trigger').checked = prefs.popupTrigger === 'typing';
+        });
+    } catch { /* context invalidated */ }
+
+    // Section nav
+    panel.querySelectorAll('.pm-nav-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            panel.querySelectorAll('.pm-nav-btn').forEach(b => b.classList.remove('pm-nav-active'));
+            panel.querySelectorAll('[id^="pm-section-"]').forEach(s => s.style.display = 'none');
+            btn.classList.add('pm-nav-active');
+            panel.querySelector(`#pm-section-${btn.dataset.target}`).style.display = 'flex';
+        });
     });
 
     // Card selection
@@ -295,7 +310,7 @@ async function buildConfigPanel() {
         btn.textContent = hidden ? 'Hide' : 'Show';
     });
 
-    // Confirm — save config and close
+    // Save — validate and persist config
     panel.querySelector('#pm-config-confirm').addEventListener('click', () => {
         if (!selectedModule) return;
         const apiKey = panel.querySelector('#pm-api-key').value.trim();
@@ -306,29 +321,45 @@ async function buildConfigPanel() {
             setTimeout(() => { input.style.borderColor = ''; }, 1500);
             return;
         }
-        chrome.storage.sync.set({ pmConfig: { module: selectedModule, apiKey } }, () => {
-            chrome.storage.sync.remove('firstRun');
-            hideConfigPanel(panel);
-        });
+        try {
+            chrome.storage.sync.set({ pmConfig: { module: selectedModule, apiKey } }, () => {
+                chrome.storage.sync.remove('firstRun');
+                hideSettings(panel);
+            });
+        } catch { /* context invalidated */ }
     });
 
     // Skip — default to window.ai
     panel.querySelector('#pm-config-skip').addEventListener('click', () => {
-        chrome.storage.sync.set({ pmConfig: { module: 'window.ai', apiKey: '' } }, () => {
-            chrome.storage.sync.remove('firstRun');
-            hideConfigPanel(panel);
-        });
+        try {
+            chrome.storage.sync.set({ pmConfig: { module: 'window.ai', apiKey: '' } }, () => {
+                chrome.storage.sync.remove('firstRun');
+                hideSettings(panel);
+            });
+        } catch { /* context invalidated */ }
     });
+
+    // Popup trigger toggle
+    panel.querySelector('#pm-pref-popup-trigger').addEventListener('change', (e) => {
+        const mode = e.target.checked ? 'typing' : 'click';
+        try {
+            chrome.storage.sync.set({ pmPrefs: { popupTrigger: mode } });
+        } catch { /* context invalidated */ }
+        onTriggerChange?.(mode);
+    });
+
+    // Close button
+    panel.querySelector('#pm-settings-close').addEventListener('click', () => hideSettings(panel));
 
     return panel;
 }
 
-function showConfigPanel(panel) {
-    panel.classList.add('pm-config-open');
+function showSettings(panel) {
+    panel.classList.add('pm-settings-open');
 }
 
-function hideConfigPanel(panel) {
-    panel.classList.remove('pm-config-open');
+function hideSettings(panel) {
+    panel.classList.remove('pm-settings-open');
 }
 
 // ----------------------------------------------------------------
@@ -356,8 +387,13 @@ async function init() {
     orb.style.top   = `${platform.orbTop}px`;
     document.body.appendChild(orb);
 
-    // Config panel — fetch markup, wire logic, append to DOM
-    const configPanel = await buildConfigPanel();
+    // inputEl is set by observeInput — applyPopupTrigger closes over it
+    let inputEl = null;
+
+    // Settings panel — fetch markup, wire logic, append to DOM
+    const settingsPanel = await buildSettingsPanel((mode) => {
+        if (inputEl) applyPopupTrigger(mode);
+    });
 
     // Glassy popup — shown/hidden by orb click, not by input events
     const popup = document.createElement('div');
@@ -383,21 +419,18 @@ async function init() {
         popupOpen = false;
     }
 
-    // Orb click: priority — no config → config panel; has config → toggle popup
+    // Orb click: if settings open → close it; if not configured → open settings; else → toggle popup
     orb.addEventListener('click', (e) => {
         e.stopPropagation();                        // prevent document listener from closing popup immediately
+        if (settingsPanel.classList.contains('pm-settings-open')) {
+            hideSettings(settingsPanel);
+            return;
+        }
         try {
             chrome.storage.sync.get(['pmConfig'], (result) => {
                 if (!result.pmConfig) {
-                    // Not configured yet — config panel takes priority
-                    configPanel.classList.contains('pm-config-open')
-                        ? hideConfigPanel(configPanel)
-                        : showConfigPanel(configPanel);
+                    showSettings(settingsPanel);
                 } else {
-                    // Configured — close config if open, then toggle popup
-                    if (configPanel.classList.contains('pm-config-open')) {
-                        hideConfigPanel(configPanel);
-                    }
                     popupOpen ? hidePopup() : showPopup();
                 }
             });
@@ -408,18 +441,18 @@ async function init() {
     popup.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('click', () => { if (popupOpen) hidePopup(); });
 
-    // First-run: auto-open config panel on fresh install
+    // First-run: auto-open settings panel on fresh install
     try {
         chrome.storage.sync.get(['firstRun'], (result) => {
-            if (result.firstRun) showConfigPanel(configPanel);
+            if (result.firstRun) showSettings(settingsPanel);
         });
     } catch { /* context already invalidated */ }
 
     // Re-attach PM body elements if the platform framework clears body children (e.g. Next.js hydration)
     new MutationObserver(() => {
-        if (!document.body.contains(orb))         document.body.appendChild(orb);
-        if (!document.body.contains(configPanel)) document.body.appendChild(configPanel);
-        if (!document.body.contains(popup))       document.body.appendChild(popup);
+        if (!document.body.contains(orb))           document.body.appendChild(orb);
+        if (!document.body.contains(settingsPanel)) document.body.appendChild(settingsPanel);
+        if (!document.body.contains(popup))         document.body.appendChild(popup);
     }).observe(document.body, { childList: true });
 
     // Magic Wand FAB — #pm-fab-wrap is the injected element; #pm-fab is the button inside it
@@ -515,7 +548,39 @@ async function init() {
         }
     });
 
-    observeInput(platform.inputSelector, (inputEl) => {
+    let debounceTimer;
+
+    // Named listeners — required so removeEventListener can target the same reference
+    function onInputClickMode() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            const text = inputEl.value ?? inputEl.innerText;
+            if (!text.trim()) { hidePopup(); return; }
+            if (popupOpen) {
+                const { score, detected } = lintPrompt(text);
+                renderPopup(popup, score, detected);
+            }
+        }, 300);
+    }
+
+    function onInputTypingMode() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            const text = inputEl.value ?? inputEl.innerText;
+            if (!text.trim()) { hidePopup(); return; }
+            showPopup();
+        }, 300);
+    }
+
+    function applyPopupTrigger(mode) {
+        inputEl.removeEventListener('input', onInputClickMode);
+        inputEl.removeEventListener('input', onInputTypingMode);
+        inputEl.addEventListener('input', mode === 'typing' ? onInputTypingMode : onInputClickMode);
+    }
+
+    observeInput(platform.inputSelector, (el) => {
+        inputEl = el;
+
         fab.addEventListener('click', async () => {
             const rawText = inputEl.value ?? inputEl.innerText;
             if (!rawText.trim()) return;
@@ -544,20 +609,13 @@ async function init() {
             }
         });
 
-        let debounceTimer;
-
-        // Keep popup content fresh while it's open; auto-close when input is cleared
-        inputEl.addEventListener('input', () => {
-            clearTimeout(debounceTimer);
-            debounceTimer = setTimeout(() => {
-                const text = inputEl.value ?? inputEl.innerText;
-                if (!text.trim()) { hidePopup(); return; }
-                if (popupOpen) {
-                    const { score, detected } = lintPrompt(text);
-                    renderPopup(popup, score, detected);
-                }
-            }, 300);
-        });
+        // Read saved pref and apply; default to 'click' (orb-only)
+        try {
+            chrome.storage.sync.get(['pmPrefs'], (result) => {
+                const mode = result.pmPrefs?.popupTrigger ?? 'click';
+                applyPopupTrigger(mode);
+            });
+        } catch { applyPopupTrigger('click'); }
     });
 }
 

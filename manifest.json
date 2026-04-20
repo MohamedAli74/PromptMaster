@@ -41,13 +41,13 @@
                 "modules/expand.js",
                 "content/content.js"
             ],
-            "css": ["content/content.css", "config/config.css"],
+            "css": ["content/content.css", "settings/settings.css"],
             "run_at": "document_idle"
         }
     ],
 
     "web_accessible_resources": [{
-        "resources": ["sidebar/sidebar.html", "sidebar/sidebar.css", "sidebar/sidebar.js", "config/config.html"],
+        "resources": ["sidebar/sidebar.html", "sidebar/sidebar.css", "sidebar/sidebar.js", "settings/settings.html"],
         "matches": [
             "https://chatgpt.com/*",
             "https://claude.ai/*",

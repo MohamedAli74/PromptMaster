@@ -1,0 +1,90 @@
+<div id="pm-settings">
+    <div id="pm-settings-sidebar">
+        <div id="pm-settings-logo">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52" width="18" height="18" style="flex-shrink:0">
+                <defs>
+                    <linearGradient id="pm-st-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#f59e0b"/>
+                        <stop offset="100%" stop-color="#7c3aed"/>
+                    </linearGradient>
+                </defs>
+                <path d="M 14,23 L 17,13 L 21,20.5 L 26,7 L 31,20.5 L 35,13 L 38,23 Z" fill="url(#pm-st-grad)"/>
+                <rect x="14" y="21.5" width="24" height="6.5" rx="3.2" fill="url(#pm-st-grad)"/>
+                <circle cx="17" cy="13" r="2.4" fill="#f59e0b"/>
+                <circle cx="26" cy="7"  r="2.8" fill="#fbbf24"/>
+                <circle cx="35" cy="13" r="2.4" fill="#8b5cf6"/>
+                <circle cx="26" cy="7"  r="1.2" fill="#ffffff" opacity="0.9"/>
+                <rect x="20" y="30" width="12" height="2"  rx="1" fill="#ffffff"/>
+                <rect x="23" y="30" width="6"  height="18" rx="3" fill="#ffffff"/>
+                <rect x="20" y="46" width="12" height="2"  rx="1" fill="#ffffff"/>
+                <circle cx="26" cy="50" r="2" fill="#f59e0b"/>
+            </svg>
+            <span id="pm-settings-brand">Prompt <span id="pm-settings-master">Master</span></span>
+        </div>
+
+        <nav id="pm-settings-nav">
+            <button class="pm-nav-btn pm-nav-active" data-target="engine">Engine</button>
+            <button class="pm-nav-btn" data-target="preferences">Preferences</button>
+        </nav>
+    </div>
+
+    <div id="pm-settings-content">
+        <!-- Engine section -->
+        <div id="pm-section-engine">
+            <p class="pm-section-subtitle">Choose your AI backend.</p>
+
+            <div id="pm-config-cards">
+                <div class="pm-card" data-module="window.ai">
+                    <div class="pm-card-badge">🔒 Best for privacy</div>
+                    <div class="pm-card-name">window.ai</div>
+                    <div class="pm-card-desc">Fully local — no data leaves your device. Requires Chrome 127+ with Gemini Nano.</div>
+                    <div class="pm-card-privacy">Nothing is ever sent anywhere.</div>
+                </div>
+
+                <div class="pm-card" data-module="groq">
+                    <div class="pm-card-badge">⚡ Best for speed</div>
+                    <div class="pm-recommended-tag">Recommended</div>
+                    <div class="pm-card-name">Groq</div>
+                    <div class="pm-card-desc">Fast, free, 2-minute signup. No credit card needed.</div>
+                    <div class="pm-card-privacy">Your prompt is sent to Groq's servers.</div>
+                </div>
+
+                <div class="pm-card pm-card-disabled" data-module="byok">
+                    <div class="pm-card-badge">🎛️ Bring your own key</div>
+                    <div class="pm-coming-soon">Coming soon</div>
+                    <div class="pm-card-name">OpenAI / Gemini / Anthropic</div>
+                    <div class="pm-card-desc">Use an existing API key from any major provider.</div>
+                    <div class="pm-card-privacy">Your prompt is sent to your chosen provider.</div>
+                </div>
+            </div>
+
+            <div id="pm-key-section">
+                <div id="pm-key-wrapper">
+                    <input type="password" id="pm-api-key" placeholder="Paste your Groq API key..." autocomplete="off" spellcheck="false">
+                    <button id="pm-key-toggle">Show</button>
+                </div>
+            </div>
+
+            <button id="pm-config-confirm" disabled>Save</button>
+            <button id="pm-config-skip">Use window.ai instead</button>
+        </div>
+
+        <!-- Preferences section -->
+        <div id="pm-section-preferences" style="display:none">
+            <p class="pm-section-subtitle">Preferences</p>
+
+            <div class="pm-pref-row">
+                <div class="pm-pref-info">
+                    <span class="pm-pref-label">Auto-show score popup</span>
+                    <span class="pm-pref-desc">Show the score popup automatically while typing, instead of waiting for an orb click.</span>
+                </div>
+                <label class="pm-toggle" aria-label="Auto-show score popup">
+                    <input type="checkbox" id="pm-pref-popup-trigger">
+                    <span class="pm-toggle-track"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
+    <button id="pm-settings-close" aria-label="Close settings">✕</button>
+</div>
