@@ -230,6 +230,7 @@ function renderPopup(popup, score, detected) {
                 <circle cx="26" cy="50" r="2" fill="#f59e0b"/>
             </svg>
             <span id="pm-header-title">Prompt <span id="pm-header-master">Master</span></span>
+            <button id="pm-settings-btn" title="Settings">⚙</button>
         </div>
         <div id="pm-divider"></div>
         <div id="pm-score-ring">${score}<span>/100</span></div>
@@ -274,8 +275,8 @@ async function buildSettingsPanel(onTriggerChange) {
                     if (apiKey) panel.querySelector('#pm-api-key').value = apiKey;
                 }
             }
-            const prefs = result.pmPrefs || { popupTrigger: 'click' };
-            panel.querySelector('#pm-pref-popup-trigger').checked = prefs.popupTrigger === 'typing';
+            const prefs = result.pmPrefs || { autoLinter: true };
+            panel.querySelector('#pm-pref-popup-trigger').checked = prefs.autoLinter !== false;
         });
     } catch { /* context invalidated */ }
 
@@ -329,23 +330,13 @@ async function buildSettingsPanel(onTriggerChange) {
         } catch { /* context invalidated */ }
     });
 
-    // Skip — default to window.ai
-    panel.querySelector('#pm-config-skip').addEventListener('click', () => {
-        try {
-            chrome.storage.sync.set({ pmConfig: { module: 'window.ai', apiKey: '' } }, () => {
-                chrome.storage.sync.remove('firstRun');
-                hideSettings(panel);
-            });
-        } catch { /* context invalidated */ }
-    });
-
-    // Popup trigger toggle
+    // Automatic linting toggle
     panel.querySelector('#pm-pref-popup-trigger').addEventListener('change', (e) => {
-        const mode = e.target.checked ? 'typing' : 'click';
+        const enabled = e.target.checked;
         try {
-            chrome.storage.sync.set({ pmPrefs: { popupTrigger: mode } });
+            chrome.storage.sync.set({ pmPrefs: { autoLinter: enabled } });
         } catch { /* context invalidated */ }
-        onTriggerChange?.(mode);
+        onTriggerChange?.(enabled);
     });
 
     // Close button
@@ -391,8 +382,8 @@ async function init() {
     let inputEl = null;
 
     // Settings panel — fetch markup, wire logic, append to DOM
-    const settingsPanel = await buildSettingsPanel((mode) => {
-        if (inputEl) applyPopupTrigger(mode);
+    const settingsPanel = await buildSettingsPanel((enabled) => {
+        if (inputEl) applyLinterMode(enabled);
     });
 
     // Glassy popup — shown/hidden by orb click, not by input events
@@ -419,22 +410,21 @@ async function init() {
         popupOpen = false;
     }
 
-    // Orb click: if settings open → close it; if not configured → open settings; else → toggle popup
-    orb.addEventListener('click', (e) => {
-        e.stopPropagation();                        // prevent document listener from closing popup immediately
-        if (settingsPanel.classList.contains('pm-settings-open')) {
-            hideSettings(settingsPanel);
-            return;
+    // Gear button inside popup — delegated so it survives renderPopup's innerHTML rewrites
+    popup.addEventListener('click', (e) => {
+        if (e.target.closest('#pm-settings-btn')) {
+            e.stopPropagation();
+            hidePopup();
+            showSettings(settingsPanel);
         }
-        try {
-            chrome.storage.sync.get(['pmConfig'], (result) => {
-                if (!result.pmConfig) {
-                    showSettings(settingsPanel);
-                } else {
-                    popupOpen ? hidePopup() : showPopup();
-                }
-            });
-        } catch { /* extension reloaded mid-session — user needs to refresh the page */ }
+    });
+
+    // Orb click: always toggles settings panel
+    orb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        settingsPanel.classList.contains('pm-settings-open')
+            ? hideSettings(settingsPanel)
+            : showSettings(settingsPanel);
     });
 
     // Click outside popup or orb → close popup
@@ -550,20 +540,8 @@ async function init() {
 
     let debounceTimer;
 
-    // Named listeners — required so removeEventListener can target the same reference
-    function onInputClickMode() {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            const text = inputEl.value ?? inputEl.innerText;
-            if (!text.trim()) { hidePopup(); return; }
-            if (popupOpen) {
-                const { score, detected } = lintPrompt(text);
-                renderPopup(popup, score, detected);
-            }
-        }, 300);
-    }
-
-    function onInputTypingMode() {
+    // Named reference required so removeEventListener targets the same function
+    function onInputLinter() {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
             const text = inputEl.value ?? inputEl.innerText;
@@ -572,10 +550,13 @@ async function init() {
         }, 300);
     }
 
-    function applyPopupTrigger(mode) {
-        inputEl.removeEventListener('input', onInputClickMode);
-        inputEl.removeEventListener('input', onInputTypingMode);
-        inputEl.addEventListener('input', mode === 'typing' ? onInputTypingMode : onInputClickMode);
+    function applyLinterMode(enabled) {
+        inputEl.removeEventListener('input', onInputLinter);
+        if (enabled) {
+            inputEl.addEventListener('input', onInputLinter);
+        } else {
+            hidePopup();
+        }
     }
 
     observeInput(platform.inputSelector, (el) => {
@@ -589,9 +570,7 @@ async function init() {
             fab.innerHTML = `<span id="pm-fab-loading">···</span>`;
             let animInterval = startLoadingAnimation(inputEl);
 
-            const result = await expand(rawText, (pct) => {
-                fab.innerHTML = `<span id="pm-fab-loading">${pct}%</span>`;
-            });
+            const result = await expand(rawText);
 
             clearInterval(animInterval);
 
@@ -609,13 +588,13 @@ async function init() {
             }
         });
 
-        // Read saved pref and apply; default to 'click' (orb-only)
+        // Read saved pref and apply; default to enabled
         try {
             chrome.storage.sync.get(['pmPrefs'], (result) => {
-                const mode = result.pmPrefs?.popupTrigger ?? 'click';
-                applyPopupTrigger(mode);
+                const enabled = result.pmPrefs?.autoLinter ?? true;
+                applyLinterMode(enabled);
             });
-        } catch { applyPopupTrigger('click'); }
+        } catch { applyLinterMode(true); }
     });
 }
 

@@ -31,16 +31,9 @@
     <div id="pm-settings-content">
         <!-- Engine section -->
         <div id="pm-section-engine">
-            <p class="pm-section-subtitle">Choose your AI backend.</p>
+            <p class="pm-section-subtitle">Choose your engine.</p>
 
             <div id="pm-config-cards">
-                <div class="pm-card" data-module="window.ai">
-                    <div class="pm-card-badge">🔒 Best for privacy</div>
-                    <div class="pm-card-name">window.ai</div>
-                    <div class="pm-card-desc">Fully local — no data leaves your device. Requires Chrome 127+ with Gemini Nano.</div>
-                    <div class="pm-card-privacy">Nothing is ever sent anywhere.</div>
-                </div>
-
                 <div class="pm-card" data-module="groq">
                     <div class="pm-card-badge">⚡ Best for speed</div>
                     <div class="pm-recommended-tag">Recommended</div>
@@ -66,7 +59,6 @@
             </div>
 
             <button id="pm-config-confirm" disabled>Save</button>
-            <button id="pm-config-skip">Use window.ai instead</button>
         </div>
 
         <!-- Preferences section -->
@@ -75,8 +67,8 @@
 
             <div class="pm-pref-row">
                 <div class="pm-pref-info">
-                    <span class="pm-pref-label">Auto-show score popup</span>
-                    <span class="pm-pref-desc">Show the score popup automatically while typing, instead of waiting for an orb click.</span>
+                    <span class="pm-pref-label">Automatic linting</span>
+                    <span class="pm-pref-desc">Show the score popup automatically while typing. Turn off for a distraction-free experience.</span>
                 </div>
                 <label class="pm-toggle" aria-label="Auto-show score popup">
                     <input type="checkbox" id="pm-pref-popup-trigger">

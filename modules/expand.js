@@ -38,25 +38,23 @@ STRICT RULES:
 - Output the rewritten prompt and then STOP — nothing after it`;
 
 // expand() — unified entry point called by content.js
-// onProgress(pct) is fired during model download (window.ai only)
-async function expand(rawText, onProgress) {
+async function expand(rawText) {
     return new Promise((resolve) => {
         try { chrome.runtime.id; } catch { return resolve({ error: 'context lost — refresh page' }); }
         chrome.storage.sync.get(['pmConfig'], async (result) => {
-            const config = result.pmConfig || { module: 'window.ai', apiKey: '' };
+            const config = result.pmConfig;
+
+            if (!config) return resolve({ error: 'open Settings to configure an engine' });
 
             try {
                 let text;
 
                 if (config.module === 'groq') {
-                    if (!config.apiKey) return resolve({ error: 'no key set' });
+                    if (!config.apiKey) return resolve({ error: 'no API key — open Settings' });
                     text = await expandWithGroq(rawText, config.apiKey, masterPrompt);
 
-                } else if (config.module === 'window.ai') {
-                    text = await expandWithWindowAI(rawText, masterPrompt, onProgress);
-
                 } else {
-                    // BYOK providers — Sprint 05
+                    // BYOK providers
                     return resolve({ error: 'coming soon' });
                 }
 

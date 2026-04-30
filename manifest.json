@@ -37,7 +37,6 @@
             "js": [
                 "modules/logger.js",
                 "modules/groq.js",
-                "modules/window-ai.js",
                 "modules/expand.js",
                 "content/content.js"
             ],
