@@ -38,7 +38,8 @@ STRICT RULES:
 - Output the rewritten prompt and then STOP — nothing after it`;
 
 // expand() — unified entry point called by content.js
-async function expand(rawText) {
+// onChunk(accumulatedText) is optional; when provided, uses streaming and calls onChunk per token
+async function expand(rawText, onChunk) {
     return new Promise((resolve) => {
         try { chrome.runtime.id; } catch { return resolve({ error: 'context lost — refresh page' }); }
         chrome.storage.sync.get(['pmConfig'], async (result) => {
@@ -51,7 +52,9 @@ async function expand(rawText) {
 
                 if (config.module === 'groq') {
                     if (!config.apiKey) return resolve({ error: 'no API key — open Settings' });
-                    text = await expandWithGroq(rawText, config.apiKey, masterPrompt);
+                    text = onChunk
+                        ? await expandWithGroqStreaming(rawText, config.apiKey, masterPrompt, onChunk)
+                        : await expandWithGroq(rawText, config.apiKey, masterPrompt);
 
                 } else {
                     // BYOK providers

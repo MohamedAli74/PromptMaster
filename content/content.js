@@ -569,10 +569,19 @@ async function init() {
             fab.disabled = true;
             fab.innerHTML = `<span id="pm-fab-loading">···</span>`;
             let animInterval = startLoadingAnimation(inputEl);
+            let animStopped  = false;
 
-            const result = await expand(rawText);
+            const onChunk = (text) => {
+                if (!animStopped) {
+                    clearInterval(animInterval);
+                    animStopped = true;
+                }
+                writeToInput(inputEl, text);
+            };
 
-            clearInterval(animInterval);
+            const result = await expand(rawText, onChunk);
+
+            if (!animStopped) clearInterval(animInterval);
 
             if (result.error) {
                 writeToInput(inputEl, rawText);
