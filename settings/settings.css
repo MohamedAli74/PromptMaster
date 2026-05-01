@@ -311,6 +311,44 @@
 }
 
 /* ----------------------------------------------------------------
+   Test key row
+   ---------------------------------------------------------------- */
+#pm-test-key-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+#pm-test-key {
+    background: rgba(255, 255, 255, 0.06);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-family: 'Inter', -apple-system, sans-serif;
+    transition: background 0.15s ease, color 0.15s ease;
+    white-space: nowrap;
+}
+
+#pm-test-key:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.8);
+}
+
+#pm-test-key:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+#pm-test-key-result {
+    font-size: 11px;
+    font-family: 'Inter', -apple-system, sans-serif;
+}
+
+/* ----------------------------------------------------------------
    Action buttons
    ---------------------------------------------------------------- */
 #pm-config-confirm {

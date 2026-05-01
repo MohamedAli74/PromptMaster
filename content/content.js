@@ -385,6 +385,50 @@ async function buildSettingsPanel(onTriggerChange) {
         }
     });
 
+    // Test key button
+    panel.querySelector('#pm-test-key').addEventListener('click', async () => {
+        const apiKey    = panel.querySelector('#pm-api-key').value.trim();
+        const btn       = panel.querySelector('#pm-test-key');
+        const resultEl  = panel.querySelector('#pm-test-key-result');
+        if (!apiKey) return;
+
+        btn.disabled        = true;
+        btn.textContent     = 'Testing…';
+        resultEl.textContent = '';
+        resultEl.style.color = '';
+
+        try {
+            const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                },
+                body: JSON.stringify({
+                    model: 'llama-3.1-8b-instant',
+                    messages: [{ role: 'user', content: '.' }],
+                    max_tokens: 1,
+                }),
+            });
+            if (response.ok) {
+                resultEl.textContent = '✓ Key valid';
+                resultEl.style.color = '#4ade80';
+            } else if (response.status === 401) {
+                resultEl.textContent = '✗ Invalid key';
+                resultEl.style.color = 'rgba(239,68,68,0.9)';
+            } else {
+                resultEl.textContent = '✗ Could not reach Groq';
+                resultEl.style.color = 'rgba(239,68,68,0.9)';
+            }
+        } catch {
+            resultEl.textContent = '✗ Could not reach Groq';
+            resultEl.style.color = 'rgba(239,68,68,0.9)';
+        }
+
+        btn.disabled    = false;
+        btn.textContent = 'Test key';
+    });
+
     // Automatic linting toggle
     panel.querySelector('#pm-pref-popup-trigger').addEventListener('change', (e) => {
         const enabled = e.target.checked;
