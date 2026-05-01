@@ -161,42 +161,71 @@ function observeInput(selector, callback) {
 // ----------------------------------------------------------------
 const COMPONENTS = [
     { key: 'role',       label: 'Persona / Role', weight: 15 },
-    { key: 'context',    label: 'Context',        weight: 23 },
+    { key: 'context',    label: 'Context',        weight: 25 },
     { key: 'task',       label: 'Task',           weight: 40 },
-    { key: 'constraint', label: 'Constraint',     weight: 15 },
-    { key: 'format',     label: 'Output Format',  weight:  7 },
+    { key: 'constraint', label: 'Constraint',     weight: 12 },
+    { key: 'format',     label: 'Output Format',  weight:  8 },
 ];
 
 const HEURISTICS = {
     role: {
-        keywords: ['act as', 'you are', 'as a', 'pretend to be', 'imagine you', 'take the role', 'your role is'],
-        pattern:  null,
+        patterns: [
+            /\bact\s+as\b/i,
+            /\bas\s+an?\s+\w+/i,
+            /\byou\s+are\s+an?\b/i,
+            /\bpretend\s+(to\s+be|you\s+are)\b/i,
+            /\bimagine\s+you\s+are\b/i,
+            /\bfrom\s+the\s+perspective\s+of\b/i,
+            /\bin\s+the\s+role\s+of\b/i,
+            /\btake\s+the\s+role\b/i,
+        ],
     },
     context: {
-        keywords: ['background', 'context', 'currently', 'we have', 'i have', 'our', 'the project', 'given that', 'situation'],
-        pattern:  null,
+        patterns: [
+            /\b(background|context|situation|scenario)\b/i,
+            /\bworking\s+on\b/i,
+            /\bi\s+(am|work|have|currently)\b/i,
+            /\b(our|my)\s+(team|company|project|product|app|codebase)\b/i,
+            /\bgiven\s+that\b/i,
+            /\bthe\s+(project|company|team|app|product|codebase)\b/i,
+            /\bat\s+[A-Z]/,
+        ],
     },
     task: {
-        keywords: ['write', 'create', 'generate', 'explain', 'summarize', 'list', 'build', 'help me', 'i need', 'please', 'make', 'fix', 'refactor', 'update', 'add', 'remove', 'implement', 'review', 'debug', 'convert', 'analyze', 'design'],
-        pattern:  null,
+        // tested against first 15 words only — see lintPrompt
+        patterns: [
+            /\b(write|create|generate|explain|summarize|list|build|make|fix|refactor|update|add|remove|implement|review|debug|convert|analyze|design|draft|compare|translate|describe|outline|suggest|find|show|give)\b/i,
+        ],
     },
     constraint: {
-        keywords: ["don't", 'do not', 'avoid', 'only', 'must', 'limit', 'no more than', 'keep it', 'without', 'never'],
-        pattern:  /\b(under|max|maximum|at most|no more than)\s+\d+\s*(words?|lines?|chars?|characters?)\b/i,
+        patterns: [
+            /\b(don'?t|do\s+not|avoid|without|never)\b/i,
+            /\b(only|must|limit|restrict|no\s+more\s+than)\b/i,
+            /\bkeep\s+it\s+(brief|short|concise)\b/i,
+            /\bbe\s+(brief|concise|succinct)\b/i,
+            /\b(under|max|maximum|at\s+most|no\s+more\s+than)\s+\d+\s*(words?|lines?|chars?|characters?)\b/i,
+            /\bconcise\b/i,
+        ],
     },
     format: {
-        keywords: ['bullet', 'numbered', 'table', 'json', 'markdown', 'plain text', 'paragraph', 'heading', 'list', 'step by step', 'in a'],
-        pattern:  /\b(respond|reply|output|format|return|give me)\s+(in|as|using|with)\b/i,
+        patterns: [
+            /\bbullet\s*points?\b/i,
+            /\bnumbered\s+list\b/i,
+            /\bstep[\s-]by[\s-]step\b/i,
+            /\bin\s+a?\s*(table|list|json|markdown)\b/i,
+            /\b(respond|reply|output|format|return)\s+(in|as|using|with)\b/i,
+            /\b(heading|markdown|json|plain\s+text)\b/i,
+        ],
     },
 };
 
 function lintPrompt(text) {
-    const lower = text.toLowerCase();
+    const first15 = text.trim().split(/\s+/).slice(0, 15).join(' ');
     const detected = {};
 
-    for (const [key, { keywords, pattern }] of Object.entries(HEURISTICS)) {
-        detected[key] = keywords.some(kw => lower.includes(kw))
-                     || (pattern ? pattern.test(text) : false);
+    for (const [key, { patterns }] of Object.entries(HEURISTICS)) {
+        const haystack = key === 'task' ? first15 : text;
+        detected[key] = patterns.some(p => p.test(haystack));
     }
 
     const missing = COMPONENTS.filter(c => !detected[c.key]);
