@@ -9,3 +9,9 @@ chrome.runtime.onInstalled.addListener((details) => {
         });
     }
 });
+
+chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'OPEN_TAB') {
+        chrome.tabs.create({ url: message.url });
+    }
+});

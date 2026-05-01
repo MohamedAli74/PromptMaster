@@ -335,14 +335,12 @@ async function buildSettingsPanel(onTriggerChange) {
         });
     });
 
-    // Groq signup link — chrome.tabs.create bypasses host-page popup blockers
+    // Groq signup link — routed via service worker since chrome.tabs is not available in content scripts
     panel.querySelector('#pm-groq-link').addEventListener('click', (e) => {
         e.preventDefault();
-        try { 
-            chrome.tabs.create({ url: 'https://console.groq.com/keys' }); 
-        } catch {
-             /* context invalidated */ 
-            }
+        try { chrome.runtime.sendMessage({ 
+            type: 'OPEN_TAB', url: 'https://console.groq.com/keys' }); 
+        } catch { /* context invalidated */ }
     });
 
     // Show / hide API key
@@ -572,6 +570,45 @@ async function init() {
         setTimeout(() => tip.remove(), 4000);
     }
 
+    function showPlaceholderTip(text) {
+        const RE = /\[(?:fill-in|choice):[^\]]*\]/g;
+        let count = (text.match(RE) || []).length;
+        if (count === 0) return;
+
+        const existing = document.getElementById('pm-placeholder-tip');
+        if (existing) existing.remove();
+
+        const tip = document.createElement('div');
+        tip.id = 'pm-placeholder-tip';
+
+        function updatePos() {
+            const r = fabWrap.getBoundingClientRect();
+            tip.style.left = `${r.left + r.width / 2}px`;
+            tip.style.top  = `${r.bottom + 8}px`;
+        }
+
+        const label = (n) => `✏ ${n} placeholder${n > 1 ? 's' : ''} left to fill in`;
+        tip.textContent = label(count);
+        document.body.appendChild(tip);
+        updatePos();
+
+        function onEdit() {
+            updatePos();
+            const current   = inputEl.value ?? inputEl.innerText;
+            const remaining = (current.match(RE) || []).length;
+            if (remaining < count) {
+                count = remaining;
+                if (count === 0) {
+                    tip.remove();
+                    inputEl.removeEventListener('input', onEdit);
+                } else {
+                    tip.textContent = label(count);
+                }
+            }
+        }
+        inputEl.addEventListener('input', onEdit);
+    }
+
     // Inject FAB between model config and send button on each platform
     observeInput(platform.fabAnchorSelector, (initialAnchorEl) => {
         const initialTarget = platform.getFabTarget(initialAnchorEl);
@@ -661,6 +698,7 @@ async function init() {
             fab.innerHTML = PM_WAND_SVG;
         } else {
             writeToInput(inputEl, result.text);
+            showPlaceholderTip(result.text);
             fab.disabled = false;
             fab.innerHTML = PM_WAND_SVG;
         }
