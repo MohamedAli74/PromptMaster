@@ -41,17 +41,17 @@ STRICT RULES:
 // onChunk(accumulatedText) is optional; when provided, uses streaming and calls onChunk per token
 async function expand(rawText, onChunk) {
     return new Promise((resolve) => {
-        try { chrome.runtime.id; } catch { return resolve({ error: 'context lost — refresh page' }); }
+        try { chrome.runtime.id; } catch { return resolve({ error: 'context lost — refresh the page' }); }
         chrome.storage.sync.get(['pmConfig'], async (result) => {
             const config = result.pmConfig;
 
-            if (!config) return resolve({ error: 'open Settings to configure an engine' });
+            if (!config) return resolve({ error: 'click the orb to open Settings' });
 
             try {
                 let text;
 
                 if (config.module === 'groq') {
-                    if (!config.apiKey) return resolve({ error: 'no API key — open Settings' });
+                    if (!config.apiKey) return resolve({ error: 'no API key — click the orb to open Settings' });
                     text = onChunk
                         ? await expandWithGroqStreaming(rawText, config.apiKey, masterPrompt, onChunk)
                         : await expandWithGroq(rawText, config.apiKey, masterPrompt);

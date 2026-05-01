@@ -1,25 +1,38 @@
 // Prompt Master — Groq module
 // Calls the Groq chat completions API (OpenAI-compatible endpoint).
-// Model: llama3-8b-8192 — update slug here if Groq deprecates it.
+// Model: llama-3.1-8b-instant — update slug here if Groq deprecates it.
+
+const GROQ_TIMEOUT_MS = 15000;
+
+function groqAbortController() {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), GROQ_TIMEOUT_MS);
+    return controller;
+}
 
 async function expandWithGroq(rawText, apiKey, masterPrompt) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-                { role: 'system', content: masterPrompt },
-                { role: 'user',   content: rawText },
-            ],
-        }),
-    });
-
-    const data = await response.json();
-    pmLog({ module: 'groq', input: rawText, raw: data });
+    const controller = groqAbortController();
+    let response;
+    try {
+        response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                    { role: 'system', content: masterPrompt },
+                    { role: 'user',   content: rawText },
+                ],
+            }),
+            signal: controller.signal,
+        });
+    } catch (err) {
+        if (err.name === 'AbortError') throw new Error('request timed out');
+        throw err;
+    }
 
     if (!response.ok) {
         if (response.status === 400) throw new Error('bad request');
@@ -28,25 +41,38 @@ async function expandWithGroq(rawText, apiKey, masterPrompt) {
         throw new Error(`error ${response.status}`);
     }
 
-    return data.choices[0].message.content.trim();
+    const data = await response.json();
+    pmLog({ module: 'groq', input: rawText, raw: data });
+
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) throw new Error('unexpected response');
+    return content.trim();
 }
 
 async function expandWithGroqStreaming(rawText, apiKey, masterPrompt, onChunk) {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-            model: 'llama-3.1-8b-instant',
-            messages: [
-                { role: 'system', content: masterPrompt },
-                { role: 'user',   content: rawText },
-            ],
-            stream: true,
-        }),
-    });
+    const controller = groqAbortController();
+    let response;
+    try {
+        response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+                model: 'llama-3.1-8b-instant',
+                messages: [
+                    { role: 'system', content: masterPrompt },
+                    { role: 'user',   content: rawText },
+                ],
+                stream: true,
+            }),
+            signal: controller.signal,
+        });
+    } catch (err) {
+        if (err.name === 'AbortError') throw new Error('request timed out');
+        throw err;
+    }
 
     if (!response.ok) {
         if (response.status === 401) throw new Error('key invalid');

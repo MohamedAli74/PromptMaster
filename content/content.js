@@ -351,6 +351,7 @@ function showSettings(panel) {
 
 function hideSettings(panel) {
     panel.classList.remove('pm-settings-open');
+    try { chrome.storage.sync.remove('firstRun'); } catch { /* context invalidated */ }
 }
 
 // ----------------------------------------------------------------
@@ -499,6 +500,19 @@ async function init() {
         fab.addEventListener('animationend', onHideDone, { once: true });
     }
 
+    function showFabError(message) {
+        const existing = document.getElementById('pm-fab-error');
+        if (existing) existing.remove();
+        const rect = fabWrap.getBoundingClientRect();
+        const tip  = document.createElement('div');
+        tip.id          = 'pm-fab-error';
+        tip.textContent = message;
+        tip.style.left  = `${rect.left + rect.width / 2}px`;
+        tip.style.top   = `${rect.top - 10}px`;
+        document.body.appendChild(tip);
+        setTimeout(() => tip.remove(), 4000);
+    }
+
     // Inject FAB between model config and send button on each platform
     observeInput(platform.fabAnchorSelector, (initialAnchorEl) => {
         const initialTarget = platform.getFabTarget(initialAnchorEl);
@@ -585,11 +599,9 @@ async function init() {
 
             if (result.error) {
                 writeToInput(inputEl, rawText);
-                fab.innerHTML = `<span id="pm-fab-loading">${result.error}</span>`;
-                setTimeout(() => {
-                    fab.disabled = false;
-                    fab.innerHTML = PM_WAND_SVG;
-                }, 3000);
+                showFabError(result.error);
+                fab.disabled = false;
+                fab.innerHTML = PM_WAND_SVG;
             } else {
                 writeToInput(inputEl, result.text);
                 fab.disabled = false;
