@@ -146,14 +146,18 @@ function chromeAlive() {
 // MutationObserver — wait for the input to appear in the DOM
 // ----------------------------------------------------------------
 function observeInput(selector, callback) {
-    const existing = document.querySelector(selector);
-    if (existing) { callback(existing); return; }
+    let current = null;
 
-    const observer = new MutationObserver(() => {
+    function check() {
         const el = document.querySelector(selector);
-        if (el) { observer.disconnect(); callback(el); }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
+        if (el && el !== current) {
+            current = el;
+            callback(el);
+        }
+    }
+
+    check();
+    new MutationObserver(check).observe(document.body, { childList: true, subtree: true });
 }
 
 // ----------------------------------------------------------------
@@ -422,11 +426,13 @@ async function init() {
     orb.style.top   = `${platform.orbTop}px`;
     document.body.appendChild(orb);
 
-    // inputEl is set by observeInput — applyPopupTrigger closes over it
+    // inputEl is updated by observeInput on every SPA re-render
     let inputEl = null;
+    let linterEnabled = true;
 
     // Settings panel — fetch markup, wire logic, append to DOM
     const settingsPanel = await buildSettingsPanel((enabled) => {
+        linterEnabled = enabled;
         if (inputEl) applyLinterMode(enabled);
     });
 
@@ -616,50 +622,53 @@ async function init() {
         }
     }
 
+    // FAB click — registered once; inputEl is always current via observeInput below
+    fab.addEventListener('click', async () => {
+        const rawText = inputEl ? (inputEl.value ?? inputEl.innerText) : '';
+        if (!rawText.trim()) return;
+
+        fab.disabled = true;
+        fab.innerHTML = `<span id="pm-fab-loading">···</span>`;
+        let animInterval = startLoadingAnimation(inputEl);
+        let animStopped  = false;
+
+        const onChunk = (text) => {
+            if (!animStopped) {
+                clearInterval(animInterval);
+                animStopped = true;
+            }
+            writeToInput(inputEl, text);
+        };
+
+        const result = await expand(rawText, onChunk);
+
+        if (!animStopped) clearInterval(animInterval);
+
+        if (result.error) {
+            writeToInput(inputEl, rawText);
+            showFabError(result.error);
+            fab.disabled = false;
+            fab.innerHTML = PM_WAND_SVG;
+        } else {
+            writeToInput(inputEl, result.text);
+            fab.disabled = false;
+            fab.innerHTML = PM_WAND_SVG;
+        }
+    });
+
+    // Re-fires whenever the platform replaces the input element after each message
     observeInput(platform.inputSelector, (el) => {
         inputEl = el;
-
-        fab.addEventListener('click', async () => {
-            const rawText = inputEl.value ?? inputEl.innerText;
-            if (!rawText.trim()) return;
-
-            fab.disabled = true;
-            fab.innerHTML = `<span id="pm-fab-loading">···</span>`;
-            let animInterval = startLoadingAnimation(inputEl);
-            let animStopped  = false;
-
-            const onChunk = (text) => {
-                if (!animStopped) {
-                    clearInterval(animInterval);
-                    animStopped = true;
-                }
-                writeToInput(inputEl, text);
-            };
-
-            const result = await expand(rawText, onChunk);
-
-            if (!animStopped) clearInterval(animInterval);
-
-            if (result.error) {
-                writeToInput(inputEl, rawText);
-                showFabError(result.error);
-                fab.disabled = false;
-                fab.innerHTML = PM_WAND_SVG;
-            } else {
-                writeToInput(inputEl, result.text);
-                fab.disabled = false;
-                fab.innerHTML = PM_WAND_SVG;
-            }
-        });
-
-        // Read saved pref and apply; default to enabled
-        try {
-            chrome.storage.sync.get(['pmPrefs'], (result) => {
-                const enabled = result.pmPrefs?.autoLinter ?? true;
-                applyLinterMode(enabled);
-            });
-        } catch { applyLinterMode(true); }
+        applyLinterMode(linterEnabled);
     });
+
+    // Read saved pref; default to enabled
+    try {
+        chrome.storage.sync.get(['pmPrefs'], (result) => {
+            linterEnabled = result.pmPrefs?.autoLinter ?? true;
+            if (inputEl) applyLinterMode(linterEnabled);
+        });
+    } catch { applyLinterMode(true); }
 }
 
 init();
