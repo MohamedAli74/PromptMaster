@@ -335,6 +335,16 @@ async function buildSettingsPanel(onTriggerChange) {
         });
     });
 
+    // Groq signup link — chrome.tabs.create bypasses host-page popup blockers
+    panel.querySelector('#pm-groq-link').addEventListener('click', (e) => {
+        e.preventDefault();
+        try { 
+            chrome.tabs.create({ url: 'https://console.groq.com/keys' }); 
+        } catch {
+             /* context invalidated */ 
+            }
+    });
+
     // Show / hide API key
     panel.querySelector('#pm-key-toggle').addEventListener('click', () => {
         const input  = panel.querySelector('#pm-api-key');

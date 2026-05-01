@@ -267,6 +267,23 @@
     background: rgba(255, 255, 255, 0.08);
 }
 
+#pm-groq-help {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 0 0 8px;
+    line-height: 1.5;
+    padding: 0;
+}
+
+#pm-groq-link {
+    color: #f59e0b;
+    text-decoration: none;
+}
+
+#pm-groq-link:hover {
+    text-decoration: underline;
+}
+
 #pm-key-error {
     display: none;
     font-size: 11px;
