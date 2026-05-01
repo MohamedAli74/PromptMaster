@@ -324,10 +324,24 @@ async function buildSettingsPanel(onTriggerChange) {
         }
         try {
             chrome.storage.sync.set({ pmConfig: { module: selectedModule, apiKey } }, () => {
-                chrome.storage.sync.remove('firstRun');
-                hideSettings(panel);
+                const btn = panel.querySelector('#pm-config-confirm');
+                btn.textContent = '✓ Saved';
+                btn.disabled = true;
+                setTimeout(() => hideSettings(panel), 1500);
             });
         } catch { /* context invalidated */ }
+    });
+
+    // Inline key format validation
+    panel.querySelector('#pm-api-key').addEventListener('input', (e) => {
+        const val = e.target.value;
+        const errorEl = panel.querySelector('#pm-key-error');
+        if (val && !/^gsk_/.test(val)) {
+            errorEl.textContent = 'Groq keys start with gsk_';
+            errorEl.style.display = 'block';
+        } else {
+            errorEl.style.display = 'none';
+        }
     });
 
     // Automatic linting toggle
